@@ -162,17 +162,11 @@ impl<'a> FEM<'a> {
         let mut msg = Messenger::new(String::from("Generate global stiffness matrix"), 1, self.mesh.num_fe as i64, 5);
         for i in 0..self.mesh.num_fe {
             msg.add_progress();
-            //print!("\rGenerate global stiffness matrix: {}", i);
-            // let mut fe = FE::new(self.mesh.fe_type, self.param.e, self.param.thk, self.mesh.ge_fe_coord(i));
-            // let lm = fe.generate()?;
-            let lm = self.calc_fe_matrix(i)?;
-            //println!("{:?}", lm);
-            solver.add_local_matrix(&lm, &self.mesh.fe, i)?;
+            solver.add_local_matrix(&self.calc_fe_matrix(i)?, &self.mesh.fe, i)?;
         }
         self.set_concentrated_load(&mut solver)?;
         self.set_volume_load(&mut solver)?;
         self.set_surface_load(&mut solver)?;
-        //self.set_pressure_load(&mut solver)?;
         self.set_boundary_condition(&mut solver)?;
         // let res = self.calc_results(&solver.cg_solve(self.param.eps)?);
         // let res = self.calc_results(&solver.cho_solve(self.param.eps)?);

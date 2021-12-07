@@ -160,6 +160,6 @@ fn main() {
     // test_1d2();
     // test_2d4();
     // test_3d4();
-    // test_3d8();
-    test_cyl3d();
+    test_3d8();
+    // test_cyl3d();
 }
