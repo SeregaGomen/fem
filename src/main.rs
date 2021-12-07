@@ -98,7 +98,7 @@ fn test_3d4() {
 fn test_3d8() {
     // let mesh_name = "/home/serg/work/mesh/cube_test.trpa";
     // let mesh_name = "D:/Work/python/pyfem/mesh/cube.trpa";
-    let mesh_name = "/home/homeniuk/work/python/pyfem/mesh/cube.trpa";
+    let mesh_name = "/home/serg/work/python/pyfem/mesh/cube.trpa";
     let mut fem: fem::FEM = match fem::FEM::new(mesh_name) {
         Err(err) => {
             println!("{}", err.say_error());
