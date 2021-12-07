@@ -119,7 +119,7 @@ fn test_3d8() {
     // fem.add_pressure_load("1", "z == 1");
 
     // fem.add_surface_load_fun(|_x, _y, _z| { -0.5 }, |_x, _y, z| { if z == 1. { true } else { false } }, Direct::Z);
-    fem.add_volume_load_fun(|x, _y, _z| { x }, |_x, _y, _z| { true }, Direct::Z);
+    fem.add_volume_load_fun(|_x, _y, _z| { -0.5 }, |_x, _y, _z| { true }, Direct::Z);
     match fem.generate() {
         Err(err) => {
             println!("{}", err.say_error());
@@ -129,9 +129,37 @@ fn test_3d8() {
     }
 }
 
+#[allow(dead_code)]
+fn test_cyl3d() {
+    let mesh_name = "/home/homeniuk/work/python/pyfem/mesh/cyl.trpa";
+    let mut fem: fem::FEM = match fem::FEM::new(mesh_name) {
+        Err(err) => {
+            println!("{}", err.say_error());
+            return;
+        }
+        Ok(fem) => fem,
+    };
+    fem.set_young_modulus(203200.);
+    fem.set_poisons_ratio(0.27);
+    
+    fem.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |x, _y, _z| { if x == 0.0 { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
+    fem.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |x, _y, _z| { if x == 2.0 { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
+    
+    fem.add_pressure_load_fun(|_x, _y, _z| { 1.0E+4 }, |_x, y, z| { if (y * y + z * z - 0.5 * 0.5).abs() < 1.0E-2 {true} else {false} });
+    match fem.generate() {
+        Err(err) => {
+            println!("{}", err.say_error());
+            return;
+        }
+        _ => println!("Done"),
+    }
+}
+
+
 fn main() {
     // test_1d2();
     // test_2d4();
     // test_3d4();
-    test_3d8();
+    // test_3d8();
+    test_cyl3d();
 }
