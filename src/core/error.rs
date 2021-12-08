@@ -20,9 +20,9 @@ pub enum Error {
 impl Error {
     pub fn say_error(&self) -> &str {
         match self {
-            Error::OpenFile => "Error: unable open mesh-file",
-            Error::ReadFile => "Error: unable read mesh-file",
-            Error::WriteFile => "Error: unable read mesh-file",
+            Error::OpenFile => "Error: unable open file",
+            Error::ReadFile => "Error: unable read file",
+            Error::WriteFile => "Error: unable write file",
             Error::InvalidFEType => "Error: invalid FE type",
             Error::InvalidNumber => "Error: invalid number",
             Error::SingularMatrix => "Error: singular matrix",

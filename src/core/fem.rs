@@ -443,7 +443,7 @@ impl<'a> FEM<'a> {
         };
         let mut stream = BufWriter::new(file);
         // Запись сигнатуры
-        if !write!(stream, "Core QFEM results file\n").is_ok() {
+        if !write!(stream, "FEM Solver Results File\n").is_ok() {
             return Err(Error::WriteFile);
         }
         // Вывод сетки
@@ -498,6 +498,9 @@ impl<'a> FEM<'a> {
         }
         let now = Utc::now();
         if !write!(stream, "{:02}.{:02}.{:4} - {:02}:{:02}:{:02}\n",now.day(), now.month(), now.year(), now.hour(), now.minute(), now.second()).is_ok() {
+            return Err(Error::WriteFile);
+        }
+        if !write!(stream, "{}\n", self.num_results()).is_ok() {
             return Err(Error::WriteFile);
         }
         for i in 0..res.shape()[0] {
