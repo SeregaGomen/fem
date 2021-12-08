@@ -99,7 +99,7 @@ fn test_3d4() {
 fn test_3d8() {
     // let mesh_name = "/home/serg/work/mesh/cube_test.trpa";
     // let mesh_name = "D:/Work/python/pyfem/mesh/cube.trpa";
-    let mesh_name = "/home/homeniuk/work/python/pyfem/mesh/cube.trpa";
+    let mesh_name = "/home/serg/work/python/pyfem/mesh/cube.trpa";
     let mut fem: fem::FEM = match fem::FEM::new(mesh_name) {
         Err(err) => {
             println!("{}", err.say_error());
@@ -121,7 +121,7 @@ fn test_3d8() {
 
     // fem.add_surface_load_fun(|_x, _y, _z| { -0.5 }, |_x, _y, z| { if z == 1. { true } else { false } }, Direct::Z);
     fem.add_volume_load_fun(|_x, _y, _z| { -0.5 }, |_x, _y, _z| { true }, Direct::Z);
-    match fem.generate("/home/homeniuk/work/python/pyfem/mesh/cube.res") {
+    match fem.generate("/home/serg/work/python/pyfem/mesh/cube.res") {
         Err(err) => {
             println!("{}", err.say_error());
             return;

@@ -1,8 +1,8 @@
 use std::io::{self, Write};
 use std::time::Instant;
 
-pub struct Messenger {
-    msg: String,
+pub struct Messenger<'a> {
+    msg: &'a str,
     start: i64,
     stop: i64,
     current: i64,
@@ -11,8 +11,8 @@ pub struct Messenger {
     time: Instant,
 }
 
-impl Messenger {
-    pub fn new(msg: String, start: i64, stop: i64, step: i64) -> Self {
+impl<'a> Messenger<'a> {
+    pub fn new(msg: &'a str, start: i64, stop: i64, step: i64) -> Self {
         print!("\r{}...{}%", msg, 0);
         io::stdout().flush().unwrap();
         Self { msg, start, stop, step, current: 0, old: 0, time: Instant::now(), }

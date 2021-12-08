@@ -159,7 +159,7 @@ impl<'a> FEM<'a> {
     pub fn generate(&mut self, res_name: &str) -> Result<(), Error> {
         let time = Instant::now();
         let mut solver = Solver::new(&self.mesh);
-        let mut msg = Messenger::new(String::from("Generate global stiffness matrix"), 1, self.mesh.num_fe as i64, 5);
+        let mut msg = Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5);
         for i in 0..self.mesh.num_fe {
             msg.add_progress();
             solver.add_local_matrix(&self.calc_fe_matrix(i)?, &self.mesh.fe, i)?;
@@ -209,7 +209,7 @@ impl<'a> FEM<'a> {
             }
         }
         // Вычисление деформаций, напряжений, ...
-        let mut msg = Messenger::new(String::from("Calculation of standard finite element results"), 1, self.mesh.num_fe as i64, 5);
+        let mut msg = Messenger::new("Calculation of standard finite element results", 1, self.mesh.num_fe as i64, 5);
         for i in 0..self.mesh.num_fe {
             msg.add_progress();
             // Формируем вектор перемещений для текущего КЭ
@@ -240,7 +240,7 @@ impl<'a> FEM<'a> {
         Ok(res)
     }
     fn set_boundary_condition(&mut self, solver: &mut Solver) -> Result<(), Error> {
-        let mut msg = Messenger::new(String::from("Using of boundary conditions"), 1, self.mesh.num_vertex as i64, 5);
+        let mut msg = Messenger::new("Using of boundary conditions", 1, self.mesh.num_vertex as i64, 5);
         for i in 0..self.mesh.num_vertex {
             msg.add_progress();
             for it in &self.param.param {
@@ -266,7 +266,7 @@ impl<'a> FEM<'a> {
     }
     fn set_concentrated_load(&mut self, solver: &mut Solver) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::ConcentratedLoad) {
-            let mut msg = Messenger::new(String::from("Calculation of concentrated loads"), 1, self.mesh.num_vertex as i64, 5);
+            let mut msg = Messenger::new("Calculation of concentrated loads", 1, self.mesh.num_vertex as i64, 5);
             for i in 0..self.mesh.num_vertex {
                 msg.add_progress();
                 for it in &self.param.param {
@@ -293,7 +293,7 @@ impl<'a> FEM<'a> {
     }
     fn set_volume_load(&mut self, solver: &mut Solver) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::VolumeLoad) {
-            let mut msg = Messenger::new(String::from("Calculation of volume loads"), 1, self.mesh.num_fe as i64, 5);
+            let mut msg = Messenger::new("Calculation of volume loads", 1, self.mesh.num_fe as i64, 5);
             for i in 0..self.mesh.num_fe {
                 msg.add_progress();
                 for it in &self.param.param {
@@ -323,7 +323,7 @@ impl<'a> FEM<'a> {
     }
     fn set_surface_load(&mut self, solver: &mut Solver) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::PressureLoad) || self.param.find_parameter(ParamType::SurfaceLoad) {
-            let mut msg = Messenger::new(String::from("Calculation of surface loads"), 1, self.mesh.num_be as i64, 5);
+            let mut msg = Messenger::new("Calculation of surface loads", 1, self.mesh.num_be as i64, 5);
             for i in 0..self.mesh.num_be {
                 msg.add_progress();
                 for it in &self.param.param {

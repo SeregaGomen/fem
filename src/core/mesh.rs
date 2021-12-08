@@ -159,7 +159,7 @@ impl Mesh {
     fn create_mesh_map(num_vertex: usize, fe: &Array2<usize>) -> Vec<Vec<usize>> {
         let mut link: Vec<bool> = vec![false; num_vertex];
         let mut mesh_map: Vec<Vec<usize>> = vec![vec![]; num_vertex];
-        let mut msg = Messenger::new(String::from("Creating mesh map"), 1, num_vertex as i64, 5);
+        let mut msg = Messenger::new("Creating mesh map", 1, num_vertex as i64, 5);
         for i in 0..num_vertex {
             msg.add_progress();
             for j in 0..fe.shape()[0] {

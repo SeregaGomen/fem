@@ -45,7 +45,7 @@ impl Solver {
         
         // self.a.print();
         // println!();
-        let mut msg = Messenger::new(String::from("Solution of the system of equations"), 1, 2 * max_iter as i64, 1);
+        let mut msg = Messenger::new("Solution of the system of equations", 1, 2 * max_iter as i64, 1);
         for _i in 0..max_iter {
             msg.add_progress();
             let p = self.a.dot(&z);
@@ -80,7 +80,7 @@ impl Solver {
         let mut is_ok = false;
         
         // println!("{:?}", x);
-        let mut msg = Messenger::new(String::from("Solution of the system of equations"), 1, 2 * max_iter as i64, 1);
+        let mut msg = Messenger::new("Solution of the system of equations", 1, 2 * max_iter as i64, 1);
         for _i in 0..max_iter {
             msg.add_progress();
             let r1 = self.a.dot(&s);
@@ -113,7 +113,7 @@ impl Solver {
     pub fn cho_solve(&mut self, eps: f64) -> Result<Array1<f64>, Error> {
         let n = self.size * self.freedom;
         let mut l: Array1<f64> = Array1::zeros((n + 1) * n / 2);
-        let mut msg = Messenger::new(String::from("Factorization of matrix"), 1, n as i64, 1);
+        let mut msg = Messenger::new("Factorization of matrix", 1, n as i64, 1);
         // Факторизация матрицы A
         for i in 0..n {
             msg.add_progress();
@@ -140,7 +140,7 @@ impl Solver {
                 l[(j + 1) * j / 2 + i] /= l[(i + 1) * i / 2 + i];
             }
         }
-        let mut msg = Messenger::new(String::from("Solution of the system of equations"), 1, 2 * n as i64, 1);
+        let mut msg = Messenger::new("Solution of the system of equations", 1, 2 * n as i64, 1);
         // Вычисление y (Ly = b)
         let mut y: Array1<f64> = Array1::zeros(n);
         y[0] = self.b[0] / l[0];
