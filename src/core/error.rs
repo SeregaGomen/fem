@@ -4,6 +4,7 @@
 pub enum Error {
     OpenFile,
     ReadFile,
+    WriteFile,
     InvalidFEType, 
     InvalidNumber,
     SingularMatrix,  
@@ -17,20 +18,21 @@ pub enum Error {
 }
 #[allow(dead_code)]
 impl Error {
-    pub fn say_error(&self) -> String {
+    pub fn say_error(&self) -> &str {
         match self {
-            Error::OpenFile => String::from("Error: unable open mesh-file"),
-            Error::ReadFile => String::from("Error: unable read mesh-file"),
-            Error::InvalidFEType => String::from("Error: invalid FE type"),
-            Error::InvalidNumber => String::from("Error: invalid number"),
-            Error::SingularMatrix => String::from("Error: singular matrix"),
-            Error::InverseMatrix => String::from("Error calculation of inverse matrix"),
-            Error::DeterminantMatrix => String::from("Error calculation of matrix determinant"),
-            Error::InvalidIndex => String::from("Error: invalid index"),
-            Error::UndefError => String::from("Error: undefined variable"),
-            Error::BracketError => String::from("Error: unbalanced brackets"),
-            Error::SyntaxError => String::from("Syntax error"),
-            Error::InternalError => String::from("Internal error"),
+            Error::OpenFile => "Error: unable open mesh-file",
+            Error::ReadFile => "Error: unable read mesh-file",
+            Error::WriteFile => "Error: unable read mesh-file",
+            Error::InvalidFEType => "Error: invalid FE type",
+            Error::InvalidNumber => "Error: invalid number",
+            Error::SingularMatrix => "Error: singular matrix",
+            Error::InverseMatrix => "Error calculation of inverse matrix",
+            Error::DeterminantMatrix => "Error calculation of matrix determinant",
+            Error::InvalidIndex => "Error: invalid index",
+            Error::UndefError => "Error: undefined variable",
+            Error::BracketError => "Error: unbalanced brackets",
+            Error::SyntaxError => "Syntax error",
+            Error::InternalError => "Internal error",
         }
     }    
 }
