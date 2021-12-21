@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::io::Write;
 use ndarray::Array1;
 use crate::error::Error;
@@ -78,14 +79,28 @@ impl SparseMatrix {
         }
         Ok(())
     } 
+    // pub fn dot(&self, rhs: &Array1<f64>) -> Array1<f64> {
+    //     let mut x: Array1<f64> = Array1::zeros(self.size * self.freedom);
+    //     for i in 0..self.rows() {
+    //         for j in 0..self.data[i].len() {
+    //             let col = self.index[i / self.freedom][j / self.freedom] * self.freedom + j % self.freedom;
+    //             x[i] += self.data[i][j] * rhs[col];
+    //         }
+    //     }
+    //     x
+    // }
     pub fn dot(&self, rhs: &Array1<f64>) -> Array1<f64> {
-        let mut x: Array1<f64> = Array1::zeros(self.size * self.freedom);
-        for i in 0..self.rows() {
-            for j in 0..self.data[i].len() {
-                let col = self.index[i / self.freedom][j / self.freedom] * self.freedom + j % self.freedom;
-                x[i] += self.data[i][j] * rhs[col];
-            }
-        }
-        x
+        let mut rows = (0..self.rows())
+            .into_par_iter()
+            .map(move |i| {
+                (i, (0..self.data[i].len())
+                .map(|j| {
+                    let col = self.index[i / self.freedom][j / self.freedom] * self.freedom + j % self.freedom;
+                    &self.data[i][j] * &rhs[col]
+                }).sum::<f64>())
+            })
+            .collect::<Vec<(usize, f64)>>();
+        rows.par_sort_by(|left, right| left.0.cmp(&right.0));
+        rows.into_iter().map(|(_, row)| row).collect::<Array1<f64>>()
     }
 }
