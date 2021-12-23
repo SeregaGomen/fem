@@ -159,11 +159,7 @@ impl<'a> FEM<'a> {
     pub fn generate(&mut self, res_name: &str) -> Result<(), Error> {
         let time = Instant::now();
         let mut solver = Solver::new(&self.mesh);
-        let mut msg = Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5);
-        for i in 0..self.mesh.num_fe {
-            msg.add_progress();
-            solver.add_local_matrix(&self.calc_fe_matrix(i)?, &self.mesh.fe, i)?;
-        }
+        self.set_global_matrix(&mut solver)?;
         self.set_concentrated_load(&mut solver)?;
         self.set_volume_load(&mut solver)?;
         self.set_surface_load(&mut solver)?;
@@ -174,6 +170,14 @@ impl<'a> FEM<'a> {
         self.print_summary(&res);
         println!("Lead time: {:.2?}", time.elapsed());
         self.save_results(&res, res_name)
+    }
+    fn set_global_matrix(&mut self, solver: &mut Solver) -> Result<(), Error> {
+        let mut msg = Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5);
+        for i in 0..self.mesh.num_fe {
+            msg.add_progress();
+            solver.add_local_matrix(&self.calc_fe_matrix(i)?, &self.mesh.fe, i)?;
+        }
+        Ok(())
     }
     fn num_results(&self) -> usize {
         match self.mesh.fe_type {
