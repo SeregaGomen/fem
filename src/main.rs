@@ -72,9 +72,9 @@ fn test_2d4() {
 
 #[allow(dead_code)]
 fn test_3d4() {
-    let mesh_name = "/home/serg/work/Qt/QFEM/mesh/balka.trpa";
+    let mesh_name = ("/home/homeniuk/work/Qt/QFEM/mesh/balka.trpa", "/home/homeniuk/work/Qt/QFEM/mesh/balka.res");
     // let mesh_name = "D:/Work/Qt/QFEM/mesh/balka.trpa";
-    let mut fem: fem::FEM = match fem::FEM::new(mesh_name) {
+    let mut fem: fem::FEM = match fem::FEM::new(mesh_name.0) {
         Err(err) => {
             println!("{}", err.say_error());
             return;
@@ -86,7 +86,7 @@ fn test_3d4() {
     fem.add_boundary_condition("0", "y == 0", Direct::X | Direct::Y | Direct::Z);
     // fem.add_concentrated_load(String::from("-1"), String::from("y == 4"), Direct::Y);
     fem.add_volume_load("-1", "", Direct::Y);
-    match fem.generate("/home/serg/work/Qt/QFEM/mesh/balka.res") {
+    match fem.generate(mesh_name.1) {
         Err(err) => {
             println!("{}", err.say_error());
             return;
@@ -97,10 +97,9 @@ fn test_3d4() {
 
 #[allow(dead_code)]
 fn test_3d8() {
-    // let mesh_name = "/home/serg/work/mesh/cube_test.trpa";
-    let mesh_name = "D:/Work/python/pyfem/mesh/cube.trpa";
-    // let mesh_name = "/home/serg/work/python/pyfem/mesh/cube.trpa";
-    let mut fem: fem::FEM = match fem::FEM::new(mesh_name) {
+    // let mesh_name = "D:/Work/python/pyfem/mesh/cube.trpa";
+    let mesh_name = ("/home/homeniuk/work/python/pyfem/mesh/cube.trpa", "/home/homeniuk/work/python/pyfem/mesh/cube.res");
+    let mut fem: fem::FEM = match fem::FEM::new(mesh_name.0) {
         Err(err) => {
             println!("{}", err.say_error());
             return;
@@ -121,7 +120,7 @@ fn test_3d8() {
 
     // fem.add_surface_load_fun(|_x, _y, _z| { -0.5 }, |_x, _y, z| { if z == 1. { true } else { false } }, Direct::Z);
     fem.add_volume_load_fun(|_x, _y, _z| { -0.5 }, |_x, _y, _z| { true }, Direct::Z);
-    match fem.generate("D:/Work/python/pyfem/mesh/cube.res") {
+    match fem.generate(mesh_name.1) {
         Err(err) => {
             println!("{}", err.say_error());
             return;
@@ -133,6 +132,6 @@ fn test_3d8() {
 fn main() {
     // test_1d2();
     // test_2d4();
-    // test_3d4();
-    test_3d8();
+    test_3d4();
+    // test_3d8();
 }
