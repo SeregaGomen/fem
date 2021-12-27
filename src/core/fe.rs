@@ -340,8 +340,8 @@ pub mod fe2d {
                     let local_stress = array![[stressm[0] + stressp[0], stressm[2] + stressp[2], stressc[0]],
                                               [stressm[2] + stressp[2], stressm[1] + stressp[1], stressc[1]],
                                               [stressc[0], stressc[1], 0.]];
-                    let global_strain = m.t().dot(&local_strain).dot(&m);
-                    let global_stress = m.t().dot(&local_stress).dot(&m);
+                    let global_strain = self.m().t().dot(&local_strain).dot(self.m());
+                    let global_stress = self.m().t().dot(&local_stress).dot(self.m());
                     res[[0, i]] += global_strain[[0, 0]];    // Exx
                     res[[1, i]] += global_strain[[1, 1]];    // Eyy
                     res[[2, i]] += global_strain[[2, 2]];    // Ezz
