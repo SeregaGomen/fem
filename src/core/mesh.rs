@@ -24,7 +24,7 @@ impl Mesh {
         let freedom: usize;
         let num_vertex: usize;
         let num_fe: usize;
-        let num_be: usize;
+        let mut num_be: usize;
         let fe_type;
         let fe_size;
         let be_size;
@@ -167,6 +167,7 @@ impl Mesh {
             }
         }
         if fe_type == FEType::FE2D3S || fe_type == FEType::FE2D4S {
+            num_be = num_fe;
             be = fe.clone();
         }
         println!("Mesh info ({}): nodes - {}, finite elements - {}", fe_type, num_vertex, num_fe);

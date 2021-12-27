@@ -214,9 +214,7 @@ pub mod fe2d {
             for i in 0..self.w().len() {
                 // Якобиан и обратная матрица Якоби
                 let jacobi = self.jacobi(i);
-                //println!("{:?}", jacobi);
                 let inv_jacobi = util::inv(&jacobi)?;
-                //println!("{:?}", inv_jacobi);
                 let jacobian = util::det(&jacobi)?;
                 if !self.is_shell() {
                     let mut b: Array2<f64> = Array2::zeros((3, size));
@@ -246,21 +244,11 @@ pub mod fe2d {
                         bc[[0, self.freedom() * j + 3]] = self.shape(i, j);
                         bc[[1, self.freedom() * j + 4]] = self.shape(i, j);
                     }
-                    //println!("{:?}", bm);
-                    //println!("{:?}", bp);
-                    //println!("{:?}", bc);
-
-
-
                     local = local + ((bm.t().dot(&self.d()).dot(&bm)) * self.thk() + 
                                     (bp.t().dot(&self.d()).dot(&bp)) * (self.thk().powf(3.) / 12.) + 
                                     (bc.t().dot(&self.ed()).dot(&bc)) * (self.thk() * 5. / 6.)) * (self.w()[i] * jacobian.abs());
-                    
-                    //println!("{:?}", local);
-
                 }
             }
-            //println!("{:?}", local);
             if self.is_shell() {
                 // Поиск максимального диагонального элемента
                 let mut singular = 0.;
@@ -278,7 +266,6 @@ pub mod fe2d {
                 let m = util::create_ext_transform_matrix(&self.m(), self.size(), self.freedom());
                 local = m.t().dot(&local).dot(&m);
             }
-            println!("{:?}", local);
             Ok(local)
         }
         fn calc(&self, u: &Array1<f64>) -> Result<Array2<f64>, Error> {
@@ -324,11 +311,6 @@ pub mod fe2d {
                         bc[[1, self.freedom() * j + 4]] = if i == j { 1. } else { 0. };
                     }
                     let strainm = bm.dot(&lu);
-
-                    println!("{:?}", lu);
-                    println!("{:?}", bm);
-                    println!("{:?}", strainm);
-
                     let strainp = bp.dot(&lu);
                     let strainc = bc.dot(&lu);
                     let stressm = self.d().dot(&strainm);
@@ -470,14 +452,13 @@ pub mod fe2d {
             let mut x = x;
             if is_shell {
                 m = util::create_transform_matrix(&x);
-                let y = &m * &x.t();
+                let y = m.dot(&x.t());
                 for i in 0..y.shape()[0] {
                     for j in 0..y.shape()[1] {
                         x[[i, j]] = y[[j, i]];
                     }
                 }
             }
-           
             Self { e, thk, x, is_shell, m }
         }
     }
