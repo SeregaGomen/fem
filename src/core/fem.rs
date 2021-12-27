@@ -184,6 +184,7 @@ impl<'a> FEM<'a> {
             FEType::FE1D2 => 3,
             FEType::FE2D3 | FEType::FE2D4 => 8,
             FEType::FE3D4 | FEType::FE3D8 => 15,
+            FEType::FE2D3S | FEType::FE2D4S => 18,
         }
     }
     fn fun_names(&self) -> Vec<&str> {
@@ -191,6 +192,7 @@ impl<'a> FEM<'a> {
             FEType::FE1D2 => vec![ "U", "Exx", "Sxx" ],
             FEType::FE2D3 | FEType::FE2D4 => vec![ "U", "V", "Exx", "Eyy", "Exy", "Sxx", "Syy", "Sxy" ],
             FEType::FE3D4 | FEType::FE3D8 => vec![ "U", "V", "W", "Exx", "Eyy", "Ezz", "Exy", "Exz", "Eyz", "Sxx", "Syy", "Szz", "Sxy", "Sxz", "Syz" ],
+            FEType::FE2D3S | FEType::FE2D4S => vec![ "U", "V", "W", "Tx", "Ty", "Tz", "Exx", "Eyy", "Ezz", "Exy", "Exz", "Eyz", "Sxx", "Syy", "Szz", "Sxy", "Sxz", "Syz" ],
         }
     }
     fn print_summary(&self, res: &Array2<f64>) {
@@ -367,8 +369,8 @@ impl<'a> FEM<'a> {
     fn volume_load_share(&self) -> Array1<f64> {
         match self.mesh.fe_type {   
             FEType::FE1D2 => array![ 0.5, 0.5 ],
-            FEType::FE2D3 => array![ 0.33333333333, 0.33333333333, 0.33333333333 ],
-            FEType::FE2D4 | FEType::FE3D4 => array![ 0.25, 0.25, 0.25, 0.25 ],
+            FEType::FE2D3 | FEType::FE2D3S => array![ 0.33333333333, 0.33333333333, 0.33333333333 ],
+            FEType::FE2D4 | FEType::FE2D4S | FEType::FE3D4 => array![ 0.25, 0.25, 0.25, 0.25 ],
             FEType::FE3D8 => array![ 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125 ],
         } 
     }
@@ -376,8 +378,8 @@ impl<'a> FEM<'a> {
         match self.mesh.fe_type {   
             FEType::FE1D2 => array![ 1.0 ],
             FEType::FE2D3 | FEType::FE2D4 => array![ 0.5, 0.5 ],
-            FEType::FE3D4 => array![ 0.333333333333, 0.333333333333, 0.333333333333 ],
-            FEType::FE3D8 => array![ 0.25, 0.25, 0.25, 0.25 ],
+            FEType::FE2D3S | FEType::FE3D4 => array![ 0.333333333333, 0.333333333333, 0.333333333333 ],
+            FEType::FE2D4S | FEType::FE3D8 => array![ 0.25, 0.25, 0.25, 0.25 ],
         } 
     }
     fn calc_fe_matrix(&self, i: usize) -> Result<Array2<f64>, Error> {
@@ -390,12 +392,12 @@ impl<'a> FEM<'a> {
                 let mut fe = fe::fe1d::FE1D2::new(self.param.e, self.param.thk, self.mesh.get_fe_coord(i));
                 fe.generate()
             }
-            FEType::FE2D3 => {
-                let mut fe = fe::fe2d::FE2D3::new(self.param.e, self.param.thk, self.mesh.get_fe_coord(i));
+            FEType::FE2D3 | FEType::FE2D3S  => {
+                let mut fe = fe::fe2d::FE2D3::new(self.param.e, self.param.thk, self.mesh.get_fe_coord(i), if self.mesh.fe_type == FEType::FE2D3 { false } else { true });
                 fe.generate()
             }
-            FEType::FE2D4 => {
-                let mut fe = fe::fe2d::FE2D4::new(self.param.e, self.param.thk, self.mesh.get_fe_coord(i));
+            FEType::FE2D4 | FEType::FE2D4S => {
+                let mut fe = fe::fe2d::FE2D4::new(self.param.e, self.param.thk, self.mesh.get_fe_coord(i), if self.mesh.fe_type == FEType::FE2D4 { false } else { true });
                 fe.generate()
             }
             FEType::FE3D4 => {
@@ -418,12 +420,12 @@ impl<'a> FEM<'a> {
                 let fe = fe::fe1d::FE1D2::new(self.param.e, self.param.thk, self.mesh.get_fe_coord(i));
                 fe.calc(&u)
             }
-            FEType::FE2D3 => {
-                let fe = fe::fe2d::FE2D3::new(self.param.e, self.param.thk, self.mesh.get_fe_coord(i));
+            FEType::FE2D3 | FEType::FE2D3S => {
+                let fe = fe::fe2d::FE2D3::new(self.param.e, self.param.thk, self.mesh.get_fe_coord(i), if self.mesh.fe_type == FEType::FE2D3 { false } else { true });
                 fe.calc(&u)
             }
-            FEType::FE2D4 => {
-                let fe = fe::fe2d::FE2D4::new(self.param.e, self.param.thk, self.mesh.get_fe_coord(i));
+            FEType::FE2D4 | FEType::FE2D4S => {
+                let fe = fe::fe2d::FE2D4::new(self.param.e, self.param.thk, self.mesh.get_fe_coord(i), if self.mesh.fe_type == FEType::FE2D4 { false } else { true });
                 fe.calc(&u)
             }
             FEType::FE3D4 => {

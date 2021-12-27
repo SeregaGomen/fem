@@ -80,7 +80,7 @@ impl Solver {
         let mut is_ok = false;
         
         // println!("{:?}", x);
-        let mut msg = Messenger::new("Solution of the system of equations", 1, 2 * max_iter as i64, 1);
+        let mut msg = Messenger::new("Solution of the system of equations", 1, max_iter as i64, 1);
         for _i in 0..max_iter {
             msg.add_progress();
             let r1 = self.a.dot(&s);

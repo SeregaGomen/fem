@@ -126,3 +126,48 @@ pub fn get_min(row: ArrayView1<f64>) ->f64 {
     }
     min
 }
+
+fn norm3(v: &Array1<f64>) -> Array1<f64> {
+    let len = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt(); 
+    array![v[0] / len, v[1] / len, v[2] / len]
+}
+
+fn create_vector(p1: ArrayView1<f64>, p2: ArrayView1<f64>) -> Array1<f64> {
+    let mut res = Array1::<f64>::zeros(3);
+    for i in 0..3 {
+        res[i] = p2[i] - p1[i];
+    }
+    norm3(&res)
+}
+
+fn cross_product(a: &Array1<f64>, b: &Array1<f64>) -> Array1<f64> {
+    let mut res = Array1::<f64>::zeros(3);
+    res[0] = a[1] * b[2] - a[2] * b[1];
+    res[1] = a[2] * b[0] - a[0] * b[2];
+    res[2] = a[0] * b[1] - a[1] * b[0];
+    norm3(&res)
+}
+
+// Построение матрицы преобразования для оболочечных КЭ
+pub fn create_transform_matrix(x: &Array2<f64>) -> Array2<f64> {
+    let tmp = create_vector(x.row(2), x.row(0));
+    let vx = create_vector(x.row(1), x.row(0));
+    let vz = cross_product(&vx, &tmp);
+    let vy = cross_product(&vz, &vx);
+    array![[vx[0], vx[1], vx[2]], [vy[0], vy[1], vy[2]], [vz[0], vz[1], vz[2]]]
+}
+
+// Вспомогательная матрица преобразования для оболочечных КЭ
+pub fn create_ext_transform_matrix(v: &Array2<f64>, size: usize, freedom: usize) -> Array2<f64> {
+    let mut m = Array2::<f64>::zeros((size * freedom, size * freedom));
+    for i in 0..3 {
+        for j in 0..3 {
+            for k in (0..size * freedom).step_by(3) {
+                m[[i + k, j + k]] = v[[i, j]];
+                m[[i + k, j + k]] = v[[i, j]];
+                m[[i + k, j + k]] = v[[i, j]];
+            }
+        }
+    }    
+    m
+}

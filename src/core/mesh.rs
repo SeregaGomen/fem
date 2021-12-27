@@ -75,6 +75,20 @@ impl Mesh {
                 be_size = 1;
                 freedom = 1;
             }
+            "223" | "fe2d3s" => {
+                fe_type = FEType::FE2D3S;
+                dim = 3;
+                fe_size = 3;
+                be_size = 0;
+                freedom = 6;
+            }
+            "224" | "fe2d4s" => {
+                fe_type = FEType::FE2D4S;
+                dim = 3;
+                fe_size = 4;
+                be_size = 0;
+                freedom = 6;
+            }
             _ => return Err(Error::InvalidFEType),
         }
         // Считывание количества узлов
@@ -152,6 +166,9 @@ impl Mesh {
                 be[[i, j]] = val;
             }
         }
+        if fe_type == FEType::FE2D3S || fe_type == FEType::FE2D4S {
+            be = fe.clone();
+        }
         println!("Mesh info ({}): nodes - {}, finite elements - {}", fe_type, num_vertex, num_fe);
         let mesh_map = Mesh::create_mesh_map(num_vertex, &fe);
         Ok(Self {freedom, num_vertex, num_fe, num_be, fe_type, x, fe, be, mesh_map})
@@ -215,14 +232,14 @@ impl Mesh {
         if self.fe_type == FEType::FE2D3 || self.fe_type == FEType::FE2D4 { true } else { false }
     }
     pub fn is_3d(&self) -> bool {
-        if self.fe_type == FEType::FE3D4 || self.fe_type == FEType::FE3D8 { true } else { false }
+        if self.fe_type == FEType::FE2D3S || self.fe_type == FEType::FE2D4S || self.fe_type == FEType::FE3D4 || self.fe_type == FEType::FE3D8 { true } else { false }
     }
     pub fn fe_volume(&self, i: usize) -> f64 {
         let x = self.get_fe_coord(i);
         match self.fe_type {
             FEType::FE1D2 => self.volume_1d2(x),
-            FEType::FE2D3 => self.volume_2d3(x),
-            FEType::FE2D4 => self.volume_2d4(x),
+            FEType::FE2D3 | FEType::FE2D3S => self.volume_2d3(x),
+            FEType::FE2D4 | FEType::FE2D4S => self.volume_2d4(x),
             FEType::FE3D4 => self.volume_3d4(x),
             FEType::FE3D8 => self.volume_3d8(x),
         }
@@ -272,8 +289,8 @@ impl Mesh {
         match self.fe_type {
             FEType::FE1D2 => 1.0,
             FEType::FE2D3 | FEType::FE2D4 => self.volume_1d2(x),
-            FEType::FE3D4 => self.volume_2d3(x),
-            FEType::FE3D8 => self.volume_2d4(x),
+            FEType::FE2D3S | FEType::FE3D4 => self.volume_2d3(x),
+            FEType::FE2D4S | FEType::FE3D8 => self.volume_2d4(x),
         }
     }
     pub fn be_normal(&self, i: usize) -> Array1<f64>{
@@ -282,7 +299,7 @@ impl Mesh {
             FEType::FE1D2 => array![1., 0., 0.],
             FEType::FE2D3 | FEType::FE2D4 => 
                 array![self.x[[0, 1]] - self.x[[1, 1]], self.x[[1, 0]] - self.x[[0, 0]], 0.],
-            FEType::FE3D4 | FEType::FE3D8 => 
+            FEType::FE2D3S | FEType::FE2D4S | FEType::FE3D4 | FEType::FE3D8 => 
                 array![ (x[[1, 1]] - x[[0, 1]]) * (x[[2, 2]] - x[[0, 2]]) - (x[[2, 1]] - x[[0, 1]]) * (x[[1, 2]] - x[[0, 2]]), 
                     (x[[2, 0]] - x[[0, 0]]) * (x[[1, 2]] - x[[0, 2]]) - (x[[1, 0]] - x[[0, 0]]) * (x[[2, 2]] - x[[0, 2]]), 
                     (x[[1, 0]] - x[[0, 0]]) * (x[[2, 1]] - x[[0, 1]]) - (x[[2, 0]] - x[[0, 0]]) * (x[[1, 1]] - x[[0, 1]]) ],

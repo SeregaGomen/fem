@@ -10,6 +10,8 @@ pub enum FEType {
     FE1D2,
     FE2D3,
     FE2D4,
+    FE2D3S,
+    FE2D4S,
     FE3D4,
     FE3D8,
 }
@@ -20,6 +22,8 @@ impl fmt::Display for FEType {
             FEType::FE1D2 => "fe1d2",     
             FEType::FE2D3 => "fe2d3",     
             FEType::FE2D4 => "fe2d4",     
+            FEType::FE2D3S => "fe2d3s",     
+            FEType::FE2D4S => "fe2d4s",     
             FEType::FE3D4 => "fe3d4",     
             FEType::FE3D8 => "fe3d8",     
         };
@@ -81,8 +85,8 @@ pub mod fe1d {
             // self.create()?;
             let size = self.size() * self.freedom();
             let mut local: Array2<f64> = Array2::zeros((size , size));
-            let mut b: Array2<f64> = Array2::zeros((1, self.size()));
             for i in 0..self.w().len() {
+                let mut b: Array2<f64> = Array2::zeros((1, size));
                 let jacobi = self.jacobi(i);
                 let inv_jacobi = util::inv(&jacobi)?;
                 let jacobian = util::det(&jacobi)?;
@@ -161,19 +165,30 @@ pub mod fe2d {
     use crate::fem::util;
 
     pub struct FE2D3 {
-        e: [f64; 2],        
+        is_shell: bool,
         thk: f64,           
-        x: Array2<f64>,     
+        e: [f64; 2],        
+        x: Array2<f64>,   
+        m: Array2<f64>,     
     }
     
     pub struct FE2D4 {
-        e: [f64; 2],        
+        is_shell: bool,
         thk: f64,           
-        x: Array2<f64>,     
+        e: [f64; 2],        
+        x: Array2<f64>,   
+        m: Array2<f64>,     
     }
     
     pub trait FiniteElement2D: FiniteElement {
+        fn is_shell(&self) -> bool;
         fn thk(&self) -> f64;
+        fn shape(&self, i: usize, j: usize) -> f64;
+        fn m(&self) -> &Array2<f64>;
+        fn ed(&self) -> Array2<f64> {
+            array![[ self.e()[0] / (2. + 2. * self.e()[1]),  0. ],
+                   [ 0.,  self.e()[0] / (2. + 2. * self.e()[1]) ]]
+        }
         fn dx(&self, c: &Array2<f64>, i: usize, j: usize) -> f64;
         fn dy(&self, c: &Array2<f64>, i: usize, j: usize) -> f64;
         fn dxi(&self, i: usize, j: usize) -> f64;
@@ -194,43 +209,155 @@ pub mod fe2d {
             res
         }
         fn generate(&mut self) -> Result<Array2<f64>, Error> {
-            // self.create()?;
             let size = self.size() * self.freedom();
             let mut local: Array2<f64> = Array2::zeros((size , size));
-            let mut b: Array2<f64> = Array2::zeros((3, self.size() * self.freedom()));
             for i in 0..self.w().len() {
                 // Якобиан и обратная матрица Якоби
                 let jacobi = self.jacobi(i);
+                //println!("{:?}", jacobi);
                 let inv_jacobi = util::inv(&jacobi)?;
+                //println!("{:?}", inv_jacobi);
                 let jacobian = util::det(&jacobi)?;
-                for j in 0..self.size() {
-                    b[[0, j * self.freedom() + 0]] = inv_jacobi[[0, 0]] * self.dxi(i, j) + inv_jacobi[[0, 1]] * self.deta(i, j);
-                    b[[1, j * self.freedom() + 1]] = inv_jacobi[[1, 0]] * self.dxi(i, j) + inv_jacobi[[1, 1]] * self.deta(i, j);
-                    b[[2, j * self.freedom() + 1]] = b[[0, j * self.freedom() + 0]];
-                    b[[2, j * self.freedom() + 0]] = b[[1, j * self.freedom() + 1]];
+                if !self.is_shell() {
+                    let mut b: Array2<f64> = Array2::zeros((3, size));
+                    for j in 0..self.size() {
+                        b[[0, j * self.freedom() + 0]] = inv_jacobi[[0, 0]] * self.dxi(i, j) + inv_jacobi[[0, 1]] * self.deta(i, j);
+                        b[[1, j * self.freedom() + 1]] = inv_jacobi[[1, 0]] * self.dxi(i, j) + inv_jacobi[[1, 1]] * self.deta(i, j);
+                        b[[2, j * self.freedom() + 1]] = b[[0, j * self.freedom() + 0]];
+                        b[[2, j * self.freedom() + 0]] = b[[1, j * self.freedom() + 1]];
+                    }
+                    local = local + b.t().dot(&self.d()).dot(&b) * (self.w()[i] * self.thk() * jacobian.abs());
                 }
-                local = local + b.t().dot(&self.d()).dot(&b) * (self.w()[i] * self.thk() * jacobian.abs());
+                else {
+                    let mut bm: Array2<f64> = Array2::zeros((3, size));
+                    let mut bp: Array2<f64> = Array2::zeros((3, size));
+                    let mut bc: Array2<f64> = Array2::zeros((2, size));
+                    for j in 0..self.size()  {
+                        bm[[0, self.freedom() * j + 0]] = inv_jacobi[[0, 0]] * self.dxi(i, j) + inv_jacobi[[0, 1]] * self.deta(i, j);
+                        bm[[2, self.freedom() * j + 1]] = inv_jacobi[[0, 0]] * self.dxi(i, j) + inv_jacobi[[0, 1]] * self.deta(i, j);
+                        bp[[0, self.freedom() * j + 3]] = inv_jacobi[[0, 0]] * self.dxi(i, j) + inv_jacobi[[0, 1]] * self.deta(i, j);
+                        bp[[2, self.freedom() * j + 4]] = inv_jacobi[[0, 0]] * self.dxi(i, j) + inv_jacobi[[0, 1]] * self.deta(i, j);
+                        bc[[0, self.freedom() * j + 2]] = inv_jacobi[[0, 0]] * self.dxi(i, j) + inv_jacobi[[0, 1]] * self.deta(i, j);
+                        bm[[1, self.freedom() * j + 1]] = inv_jacobi[[1, 0]] * self.dxi(i, j) + inv_jacobi[[1, 1]] * self.deta(i, j);
+                        bm[[2, self.freedom() * j + 0]] = inv_jacobi[[1, 0]] * self.dxi(i, j) + inv_jacobi[[1, 1]] * self.deta(i, j);
+                        bp[[1, self.freedom() * j + 4]] = inv_jacobi[[1, 0]] * self.dxi(i, j) + inv_jacobi[[1, 1]] * self.deta(i, j);
+                        bp[[2, self.freedom() * j + 3]] = inv_jacobi[[1, 0]] * self.dxi(i, j) + inv_jacobi[[1, 1]] * self.deta(i, j);
+                        bc[[1, self.freedom() * j + 2]] = inv_jacobi[[1, 0]] * self.dxi(i, j) + inv_jacobi[[1, 1]] * self.deta(i, j);
+                        bc[[0, self.freedom() * j + 3]] = self.shape(i, j);
+                        bc[[1, self.freedom() * j + 4]] = self.shape(i, j);
+                    }
+                    //println!("{:?}", bm);
+                    //println!("{:?}", bp);
+                    //println!("{:?}", bc);
+
+
+
+                    local = local + ((bm.t().dot(&self.d()).dot(&bm)) * self.thk() + 
+                                    (bp.t().dot(&self.d()).dot(&bp)) * (self.thk().powf(3.) / 12.) + 
+                                    (bc.t().dot(&self.ed()).dot(&bc)) * (self.thk() * 5. / 6.)) * (self.w()[i] * jacobian.abs());
+                    
+                    //println!("{:?}", local);
+
+                }
             }
+            //println!("{:?}", local);
+            if self.is_shell() {
+                // Поиск максимального диагонального элемента
+                let mut singular = 0.;
+                for i in 0..size {
+                    if local[[i, i]] > singular {
+                        singular = local[[i, i]];
+                    }
+                }
+                singular *= 1.0E-3;
+                // Устранение сингулярности
+                for i in 0..self.size() {
+                    local[[self.freedom() * (i + 1) - 1, self.freedom() * (i + 1) - 1]] = singular;
+                }
+                // Преобразование из локальных координат в глобальные
+                let m = util::create_ext_transform_matrix(&self.m(), self.size(), self.freedom());
+                local = m.t().dot(&local).dot(&m);
+            }
+            println!("{:?}", local);
             Ok(local)
         }
         fn calc(&self, u: &Array1<f64>) -> Result<Array2<f64>, Error> {
             let c = self.create()?;
-            let mut res: Array2<f64> = Array2::zeros((6, self.size() * self.freedom()));
-            for i in 0..self.size() {
-                let mut b: Array2<f64> = Array2::zeros((3, self.size() * self.freedom())); 
-                for j in 0..self.size() {
-                    b[[0, j * self.freedom() + 0]] = self.dx(&c, i, j);
-                    b[[1, j * self.freedom() + 1]] = self.dy(&c, i, j);
-                    b[[2, j * self.freedom() + 0]] = self.dy(&c, i, j);
-                    b[[2, j * self.freedom() + 1]] = self.dx(&c, i, j);
-                }
-                let e = b.dot(u);
-                let s = self.d().dot(&e);
-                for j in 0..3 {
-                    res[[j, i]] += e[j];
-                    res[[j + 3, i]] += s[j];
+            let mut res: Array2<f64> = Array2::zeros((if self.is_shell() { 12 } else { 6 }, self.size() * self.freedom()));
+            if !self.is_shell() {
+                for i in 0..self.size() {
+                    let mut b: Array2<f64> = Array2::zeros((3, self.size() * self.freedom())); 
+                    for j in 0..self.size() {
+                        b[[0, j * self.freedom() + 0]] = self.dx(&c, i, j);
+                        b[[1, j * self.freedom() + 1]] = self.dy(&c, i, j);
+                        b[[2, j * self.freedom() + 0]] = self.dy(&c, i, j);
+                        b[[2, j * self.freedom() + 1]] = self.dx(&c, i, j);
+                    }
+                    let e = b.dot(u);
+                    let s = self.d().dot(&e);
+                    for j in 0..3 {
+                        res[[j, i]] += e[j];
+                        res[[j + 3, i]] += s[j];
+                    }
                 }
             }
+            else {
+                // Преобразование перемещений
+                let m = util::create_ext_transform_matrix(&self.m(), self.size(), self.freedom());
+                let lu = m.dot(u);    
+                for i in 0..self.size() {
+                    let mut bm = Array2::<f64>::zeros((3, self.size() * self.freedom()));
+                    let mut bp = Array2::<f64>::zeros((3, self.size() * self.freedom()));
+                    let mut bc = Array2::<f64>::zeros((2, self.size() * self.freedom()));
+                    for j in 0..self.size() {
+                        bm[[0, self.freedom() * j + 0]] = self.dx(&c, i, j);
+                        bm[[2, self.freedom() * j + 1]] = self.dx(&c, i, j);
+                        bp[[2, self.freedom() * j + 4]] = self.dx(&c, i, j);
+                        bp[[0, self.freedom() * j + 3]] = self.dx(&c, i, j);
+                        bc[[0, self.freedom() * j + 2]] = self.dx(&c, i, j);
+                        bm[[1, self.freedom() * j + 1]] = self.dy(&c, i, j);
+                        bm[[2, self.freedom() * j + 0]] = self.dy(&c, i, j);
+                        bp[[1, self.freedom() * j + 4]] = self.dy(&c, i, j);
+                        bp[[2, self.freedom() * j + 3]] = self.dy(&c, i, j);
+                        bc[[1, self.freedom() * j + 2]] = self.dy(&c, i, j);
+                        bc[[0, self.freedom() * j + 3]] = if i == j { 1. } else { 0. };
+                        bc[[1, self.freedom() * j + 4]] = if i == j { 1. } else { 0. };
+                    }
+                    let strainm = bm.dot(&lu);
+
+                    println!("{:?}", lu);
+                    println!("{:?}", bm);
+                    println!("{:?}", strainm);
+
+                    let strainp = bp.dot(&lu);
+                    let strainc = bc.dot(&lu);
+                    let stressm = self.d().dot(&strainm);
+                    let stressp = self.d().dot(&strainp) * self.thk() * 0.5;
+                    let stressc = self.ed().dot(&strainc);
+                    let local_strain = array![[strainm[0] + strainp[0], strainm[2] + strainp[2], strainc[0]],
+                                              [strainm[2] + strainp[2], strainm[1] + strainp[1], strainc[1]],
+                                              [strainc[0], strainc[1], 0.]];
+                    let local_stress = array![[stressm[0] + stressp[0], stressm[2] + stressp[2], stressc[0]],
+                                              [stressm[2] + stressp[2], stressm[1] + stressp[1], stressc[1]],
+                                              [stressc[0], stressc[1], 0.]];
+                    let global_strain = m.t().dot(&local_strain).dot(&m);
+                    let global_stress = m.t().dot(&local_stress).dot(&m);
+                    res[[0, i]] += global_strain[[0, 0]];    // Exx
+                    res[[1, i]] += global_strain[[1, 1]];    // Eyy
+                    res[[2, i]] += global_strain[[2, 2]];    // Ezz
+                    res[[3, i]] += global_strain[[0, 1]];    // Exy
+                    res[[4, i]] += global_strain[[0, 2]];    // Exz
+                    res[[5, i]] += global_strain[[1, 2]];    // Eyz
+                    res[[6, i]] += global_stress[[0, 0]];    // Sxx
+                    res[[7, i]] += global_stress[[1, 1]];    // Syy
+                    res[[8, i]] += global_stress[[2, 2]];    // Szz
+                    res[[9, i]] += global_stress[[0, 1]];    // Sxy
+                    res[[10, i]] += global_stress[[0, 2]];   // Sxz
+                    res[[11, i]] += global_stress[[1, 2]];   // Syz
+                            
+                }
+            }
+
             Ok(res)
         }
     }
@@ -249,7 +376,7 @@ pub mod fe2d {
             4
         }
         fn freedom(&self) -> usize {
-            2
+            if !self.is_shell { 2 } else { 6 }
         }
         fn shape_factor(&self, i: usize, j: usize) -> f64 {
             [ 1.0, self.x[[i, 0]], self.x[[i, 1]], self.x[[i, 0] ] * self.x[[i, 1]]][j]
@@ -270,7 +397,7 @@ pub mod fe2d {
             3
         }
         fn freedom(&self) -> usize {
-            2
+            if !self.is_shell { 2 } else { 6 }
         }
         fn shape_factor(&self, i: usize, j: usize) -> f64 {
             [ 1.0, self.x[[i, 0]], self.x[[i, 1]] ][j]
@@ -278,8 +405,14 @@ pub mod fe2d {
     }
     
     impl FiniteElement2D for FE2D3 {
+        fn is_shell(&self) -> bool {
+            self.is_shell
+        }
         fn thk(&self) -> f64 {
             self.thk
+        }
+        fn m(&self) -> &Array2<f64> {
+            &self.m
         }
         fn dx(&self, c: &Array2<f64>, _i: usize, j: usize) -> f64 {
             c[[1, j]]
@@ -293,11 +426,22 @@ pub mod fe2d {
         fn deta(&self, _i: usize, j: usize) -> f64 {
             [ -1.0, 0.0, 1.0 ][j]
         }
+        fn shape(&self, i: usize, j: usize) -> f64 {
+            let xi = array![ 0.0, 0.5, 0.5 ];
+            let eta = array![ 0.5, 0.0, 0.5 ];
+            [ 1.0 - xi[i] - eta[i], xi[i], eta[i] ][j]
+        }
     }
     
     impl FiniteElement2D for FE2D4 {
+        fn is_shell(&self) -> bool {
+            self.is_shell
+        }
         fn thk(&self) -> f64 {
             self.thk
+        }
+        fn m(&self) -> &Array2<f64> {
+            &self.m
         }
         fn dx(&self, c: &Array2<f64>, i: usize, j: usize) -> f64 {
             c[[1, j]] + c[[3, j]] * self.x[[i, 1]]
@@ -313,17 +457,45 @@ pub mod fe2d {
             let xi = array![ -0.57735027, -0.57735027, 0.57735027, 0.57735027 ];
             [ -0.25 * (1.0 - xi[i]), -0.25 * (1.0 + xi[i]), 0.25 * (1.0 + xi[i]), 0.25 * (1.0 - xi[i]) ][j]
         }
+        fn shape(&self, i: usize, j: usize) -> f64 {
+            let xi = array![ -0.57735027, -0.57735027, 0.57735027, 0.57735027 ];
+            let eta = array![ -0.57735027, 0.57735027, -0.57735027, 0.57735027 ];
+            [ 0.25 * (1.0 - xi[i]) * (1.0 - eta[i]), 0.25 * (1.0 + xi[i]) * (1.0 - eta[i]), 0.25 * (1.0 + xi[i]) * (1.0 + eta[i]), 0.25 * (1.0 - xi[i]) * (1.0 + eta[i]) ][j]
+        }
     }
 
     impl FE2D3 {
-        pub fn new(e: [f64; 2], thk: f64, x: Array2<f64>) -> Self {
-            Self { e, thk, x, }
+        pub fn new(e: [f64; 2], thk: f64, x: Array2<f64>, is_shell: bool, ) -> Self {
+            let mut m = Array2::<f64>::zeros((0, 0));
+            let mut x = x;
+            if is_shell {
+                m = util::create_transform_matrix(&x);
+                let y = &m * &x.t();
+                for i in 0..y.shape()[0] {
+                    for j in 0..y.shape()[1] {
+                        x[[i, j]] = y[[j, i]];
+                    }
+                }
+            }
+           
+            Self { e, thk, x, is_shell, m }
         }
     }
     
     impl FE2D4 {
-        pub fn new(e: [f64; 2], thk: f64, x: Array2<f64>) -> Self {
-            Self { e, thk, x, }
+        pub fn new(e: [f64; 2], thk: f64, x: Array2<f64>, is_shell: bool, ) -> Self {
+            let mut m = Array2::<f64>::zeros((0, 0));
+            let mut x = x;
+            if is_shell {
+                m = util::create_transform_matrix(&x);
+                let y = &m * &x.t();
+                for i in 0..y.shape()[0] {
+                    for j in 0..y.shape()[1] {
+                        x[[i, j]] = y[[j, i]];
+                    }
+                }
+            }
+            Self { e, thk, x, is_shell, m }
         }
     }
 }
@@ -376,8 +548,8 @@ pub mod fe3d {
             // self.create()?;
             let size = self.size() * self.freedom();
             let mut local: Array2<f64> = Array2::zeros((size , size));
-            let mut b: Array2<f64> = Array2::zeros((6, self.size() * self.freedom()));
             for i in 0..self.w().len() {
+                let mut b: Array2<f64> = Array2::zeros((6, size));
                 // Якобиан и обратная матрица Якоби
                 let jacobi = self.jacobi(i);
                 let inv_jacobi = util::inv(&jacobi)?;
@@ -423,8 +595,6 @@ pub mod fe3d {
             Ok(res)
         }
     }
-    
-    
     
     impl FiniteElement3D for FE3D4 {
         fn dx(&self, c: &Array2<f64>, _i: usize, j: usize) -> f64 {
@@ -539,8 +709,3 @@ pub mod fe3d {
         }
     }
 }
-
-
-
-
-
