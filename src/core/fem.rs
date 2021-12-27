@@ -53,7 +53,7 @@ impl<'a> Parameter<'a> {
     fn get_value(&self, x: &ArrayView1<f64>) -> Result<f64, Error> {
         match self.value_fun {
             None => {
-                let var_name = array!["x", "y", "z"];
+                let var_name = array!["x", "y", "shell-tube-3z"];
                 let mut parser = Parser::new();
                 for i in 0..x.len() {
                     parser.set_variable(var_name[i], x[i]);    
@@ -339,6 +339,7 @@ impl<'a> FEM<'a> {
                             continue;
                         }
                         let share = self.surface_load_share() * self.mesh.be_volume(i); 
+                        // println!("\n{:?}", share);
                         let normal = if it.p_type == ParamType::PressureLoad { self.mesh.be_normal(i) } else { array![1., 1., 1.] };
                         for j in 0..self.mesh.be.shape()[1] {
                             let val = it.get_value(&x.row(j))? * share[j];

@@ -266,6 +266,7 @@ pub mod fe2d {
                 let m = util::create_ext_transform_matrix(&self.m(), self.size(), self.freedom());
                 local = m.t().dot(&local).dot(&m);
             }
+            // println!("\n{:?}", local);
             Ok(local)
         }
         fn calc(&self, u: &Array1<f64>) -> Result<Array2<f64>, Error> {
@@ -336,7 +337,6 @@ pub mod fe2d {
                     res[[9, i]] += global_stress[[0, 1]];    // Sxy
                     res[[10, i]] += global_stress[[0, 2]];   // Sxz
                     res[[11, i]] += global_stress[[1, 2]];   // Syz
-                            
                 }
             }
 
@@ -453,8 +453,8 @@ pub mod fe2d {
             if is_shell {
                 m = util::create_transform_matrix(&x);
                 let y = m.dot(&x.t());
-                for i in 0..y.shape()[0] {
-                    for j in 0..y.shape()[1] {
+                for i in 0..x.shape()[0] {
+                    for j in 0..x.shape()[1] {
                         x[[i, j]] = y[[j, i]];
                     }
                 }
@@ -469,9 +469,9 @@ pub mod fe2d {
             let mut x = x;
             if is_shell {
                 m = util::create_transform_matrix(&x);
-                let y = &m * &x.t();
-                for i in 0..y.shape()[0] {
-                    for j in 0..y.shape()[1] {
+                let y = m.dot(&x.t());
+                for i in 0..x.shape()[0] {
+                    for j in 0..x.shape()[1] {
                         x[[i, j]] = y[[j, i]];
                     }
                 }
