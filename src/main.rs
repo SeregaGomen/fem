@@ -146,7 +146,7 @@ fn test_shell_3() {
     fem.set_thickness(0.0369);
     
     fem.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. || z == 4.014 { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
-    fem.add_pressure_load_fun(|_x, _y, _z| { -0.05 }, |_x, _y, _z| { true });
+    fem.add_pressure_load_fun(|_x, _y, _z| { 0.05 }, |_x, _y, _z| { true });
 
     match fem.generate(file_name.1) {
         Err(err) => {
