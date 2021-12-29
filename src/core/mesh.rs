@@ -1,6 +1,6 @@
 // Информация о конечно-элементной сетке
 use std::fs::File;
-use std::io::{BufReader, prelude::*};
+use std::io::{BufReader, BufWriter, prelude::*};
 use ndarray::prelude::*;
 use super::fe::FEType;
 use crate::error::Error;
@@ -33,7 +33,7 @@ impl Mesh {
             Err(_) => return Err(Error::OpenFile),
             Ok(file) => file,
         };
-        let mut reader = BufReader::new(file);
+        let mut reader = BufReader::new(&file);
         // Обработка типа КЭ
         let mut val = String::new();
         if !reader.read_line(&mut val).is_ok() {
@@ -170,8 +170,59 @@ impl Mesh {
             num_be = num_fe;
             be = fe.clone();
         }
+        // Считывание связей
+        val.clear();
+        if !reader.read_line(&mut val).is_ok() {
+            return Err(Error::ReadFile);
+        }
+        let mut mesh_map: Vec<Vec<usize>>;
+        if val.trim().len() == 0 {
+            // Если информации о связях в файле нет, создаем и записываем ее туда 
+            let mut writer = BufWriter::new(&file);
+            mesh_map = Mesh::create_mesh_map(num_vertex, &fe);
+            if !writer.write(format!("map\n").as_bytes()).is_ok() {
+                return Err(Error::WriteFile);
+            }
+            for row in &mesh_map {
+                if !writer.write(format!("{} ", row.len()).as_bytes()).is_ok() {
+                    return Err(Error::WriteFile);
+                }
+                for elem in row {
+                    if !writer.write(format!("{} ", elem).as_bytes()).is_ok() {
+                        return Err(Error::WriteFile);
+                    }
+                }
+                if !writer.write(format!("\n").as_bytes()).is_ok() {
+                    return Err(Error::WriteFile);
+                }
+            }
+        }
+        else {
+            val.clear();
+            mesh_map = vec![vec![]; num_vertex];
+            for i in 0..num_vertex {
+                if !reader.read_line(&mut val).is_ok() {
+                    return Err(Error::ReadFile);
+                }
+                let len_row: usize = match val.trim().parse() {
+                    Err(_) => return Err(Error::InvalidNumber),
+                    Ok(num_fe) => num_fe,
+                };
+                for _ in 0..len_row {
+                    val.clear();
+                    if !reader.read_line(&mut val).is_ok() {
+                        return Err(Error::ReadFile);
+                    }
+                    mesh_map[i].push( match val.trim().parse() {
+                        Err(_) => return Err(Error::InvalidNumber),
+                        Ok(num_fe) => num_fe,
+                    });    
+                }
+            }
+        }
+
         println!("Mesh info ({}): nodes - {}, finite elements - {}", fe_type, num_vertex, num_fe);
-        let mesh_map = Mesh::create_mesh_map(num_vertex, &fe);
+        //let mesh_map = Mesh::create_mesh_map(num_vertex, &fe);
         Ok(Self {freedom, num_vertex, num_fe, num_be, fe_type, x, fe, be, mesh_map})
     }
     fn create_mesh_map(num_vertex: usize, fe: &Array2<usize>) -> Vec<Vec<usize>> {
