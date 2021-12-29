@@ -1,5 +1,5 @@
 // Информация о конечно-элементной сетке
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::{BufReader, BufWriter, prelude::*};
 use ndarray::prelude::*;
 use super::fe::FEType;
@@ -29,7 +29,12 @@ impl Mesh {
         let fe_size;
         let be_size;
         let dim;
-        let file: File = match File::open(file_name) {
+        let file = match OpenOptions::new()
+                .read(true)
+                .write(true)
+                .append(true)
+                .create_new(false)
+                .open(file_name) {
             Err(_) => return Err(Error::OpenFile),
             Ok(file) => file,
         };
@@ -178,15 +183,12 @@ impl Mesh {
         let mut mesh_map: Vec<Vec<usize>>;
         if val.trim().len() == 0 {
             // Если информации о связях в файле нет, создаем и записываем ее туда 
-            let mut writer = BufWriter::new(&file);
+            let mut writer = BufWriter::new(file);
             mesh_map = Mesh::create_mesh_map(num_vertex, &fe);
             if !writer.write(format!("map\n").as_bytes()).is_ok() {
                 return Err(Error::WriteFile);
             }
             for row in &mesh_map {
-                if !writer.write(format!("{} ", row.len()).as_bytes()).is_ok() {
-                    return Err(Error::WriteFile);
-                }
                 for elem in row {
                     if !writer.write(format!("{} ", elem).as_bytes()).is_ok() {
                         return Err(Error::WriteFile);
@@ -196,27 +198,25 @@ impl Mesh {
                     return Err(Error::WriteFile);
                 }
             }
+            if writer.flush().is_err() {
+                return Err(Error::WriteFile);
+            }
         }
         else {
             val.clear();
             mesh_map = vec![vec![]; num_vertex];
             for i in 0..num_vertex {
+                val.clear();
                 if !reader.read_line(&mut val).is_ok() {
                     return Err(Error::ReadFile);
                 }
-                let len_row: usize = match val.trim().parse() {
-                    Err(_) => return Err(Error::InvalidNumber),
-                    Ok(num_fe) => num_fe,
-                };
-                for _ in 0..len_row {
-                    val.clear();
-                    if !reader.read_line(&mut val).is_ok() {
-                        return Err(Error::ReadFile);
-                    }
-                    mesh_map[i].push( match val.trim().parse() {
-                        Err(_) => return Err(Error::InvalidNumber),
-                        Ok(num_fe) => num_fe,
-                    });    
+                let ls = val.trim().split_whitespace();
+                for (_, it) in ls.enumerate() {
+                    let val: usize = match it.parse() {
+                        Err(_) => return Err(Error::InvalidNumber), 
+                        Ok(val) => val,
+                    };
+                    mesh_map[i].push(val);
                 }
             }
         }
