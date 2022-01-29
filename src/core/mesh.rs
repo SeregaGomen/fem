@@ -225,37 +225,56 @@ impl Mesh {
         //let mesh_map = Mesh::create_mesh_map(num_vertex, &fe);
         Ok(Self {freedom, num_vertex, num_fe, num_be, fe_type, x, fe, be, mesh_map})
     }
+    // fn create_mesh_map(num_vertex: usize, fe: &Array2<usize>) -> Vec<Vec<usize>> {
+    //     let mut link: Vec<bool> = vec![false; num_vertex];
+    //     let mut mesh_map: Vec<Vec<usize>> = vec![vec![]; num_vertex];
+    //     let mut msg = Messenger::new("Creating mesh map", 1, num_vertex as i64, 5);
+    //     for i in 0..num_vertex {
+    //         msg.add_progress();
+    //         for j in 0..fe.shape()[0] {
+    //             for k in 0..fe.shape()[1] {
+    //                 if fe[[j, k]] == i {
+    //                     for m in 0..fe.shape()[1] {
+    //                         link[fe[[j, m]]] = true;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         for j in 0..link.len() {
+    //             // if link[j] == true && j >= i {
+    //             if link[j] == true {
+    //                 mesh_map[i].push(j);
+    //             }
+    //         }
+    //         link.fill(false);
+    //     }
+    //     // for i in 0..mesh_map.len() {
+    //     //     for j in 0..mesh_map[i].len() {
+    //     //         print!("{} ", mesh_map[i][j]);
+    //     //     }            
+    //     //     println!();
+    //     // }
+        
+    //     // println!("{:?}", mesh_map);
+    //     mesh_map
+    // }
     fn create_mesh_map(num_vertex: usize, fe: &Array2<usize>) -> Vec<Vec<usize>> {
-        let mut link: Vec<bool> = vec![false; num_vertex];
-        let mut mesh_map: Vec<Vec<usize>> = vec![vec![]; num_vertex];
-        let mut msg = Messenger::new("Creating mesh map", 1, num_vertex as i64, 5);
-        for i in 0..num_vertex {
+        let mut mesh_map: Vec<Vec<usize>> = vec![Vec::new(); num_vertex];
+        let mut msg = Messenger::new("Creating mesh map", 1, fe.shape()[0] as i64, 5);
+        for i in 0..fe.shape()[0] {
             msg.add_progress();
-            for j in 0..fe.shape()[0] {
+            for j in 0..fe.shape()[1] {
                 for k in 0..fe.shape()[1] {
-                    if fe[[j, k]] == i {
-                        for m in 0..fe.shape()[1] {
-                            link[fe[[j, m]]] = true;
-                        }
+                    if mesh_map[fe[[i, j]]].iter().position(|l| *l == fe[[i, k]]) == None {
+                        mesh_map[fe[[i, j]]].push(fe[[i, k]]);
                     }
                 }
             }
-            for j in 0..link.len() {
-                // if link[j] == true && j >= i {
-                if link[j] == true {
-                    mesh_map[i].push(j);
-                }
-            }
-            link.fill(false);
         }
-        // for i in 0..mesh_map.len() {
-        //     for j in 0..mesh_map[i].len() {
-        //         print!("{} ", mesh_map[i][j]);
-        //     }            
-        //     println!();
-        // }
-        
-        // println!("{:?}", mesh_map);
+        for i in 0..num_vertex {
+            mesh_map[i].sort();
+        }
+        //msg.stop();
         mesh_map
     }
     pub fn get_fe_coord(&self, i: usize) -> Array2<f64> {
