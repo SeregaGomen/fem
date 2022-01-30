@@ -1,5 +1,5 @@
 use rayon::prelude::*;
-use ndarray::{Array1, prelude::*};
+use ndarray::{Array1};
 use crate::error::Error;
 
 pub trait SparseMatrix {
