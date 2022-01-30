@@ -164,9 +164,7 @@ impl<'a> FEM<'a> {
         self.set_volume_load(&mut solver)?;
         self.set_surface_load(&mut solver)?;
         self.set_boundary_condition(&mut solver)?;
-        // let res = self.calc_results(&solver.cg_solve(self.param.eps)?);
-        // let res = self.calc_results(&solver.cho_solve(self.param.eps)?);
-        let res = &self.calc_results(&solver.lzh_solve(self.param.eps)?)?;
+        let res = &self.calc_results(&solver.solve(self.param.eps)?)?;
         self.print_summary(&res);
         println!("Lead time: {:.2?}", time.elapsed());
         self.save_results(&res, res_name)

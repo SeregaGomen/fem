@@ -11,6 +11,7 @@ pub trait Solver {
     fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error>; 
     fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error>;
     fn set_result_value(&mut self, index: usize, val: f64) -> Result<(), Error>;
+    fn solve(&self, eps: f64) -> Result<Array1<f64>, Error>;
 }
 
 pub struct LzhSolver {
@@ -211,5 +212,8 @@ impl Solver for LzhSolver {
         self.a.set_value(index, index, 1.)?;
         self.b[index] = val;
         Ok(())
+    }
+    fn solve(&self, eps: f64) -> Result<Array1<f64>, Error> {
+        self.lzh_solve(eps)
     }
 }

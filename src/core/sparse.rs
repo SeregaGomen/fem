@@ -136,7 +136,7 @@ impl SparseMatrix for EnvSparseMatrix {
     }
 }
 
-//#[allow(dead_code)]
+#[allow(dead_code)]
 impl MapSparseMatrix {
     pub fn new(nvtxs: usize, blksze: usize, map: &Vec<Vec<usize>>) -> Self {
         let mut data: Vec<Vec<f64>> = Vec::new();
@@ -183,6 +183,7 @@ impl MapSparseMatrix {
     }
 }
 
+#[allow(dead_code)]
 impl EnvSparseMatrix {
     pub fn new(nvtxs: usize, blksze: usize, map: &Vec<Vec<usize>>) -> Self {
         let mut size: usize = 0;
