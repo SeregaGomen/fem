@@ -1,43 +1,39 @@
-use ndarray::{Array1, Array2};
+use ndarray::{Array1};
 use crate::error::Error;
-use super::sparse::SparseMatrix;
+use super::sparse::{SparseMatrix, MapSparseMatrix};
 use super::mesh::Mesh;
 use super::msg::Messenger;
 use super::util;
 
-pub struct Solver {
-    size: usize,
-    freedom: usize,
-    a: SparseMatrix,
+pub trait Solver {
+    fn nvtxs(&self) -> usize;
+    fn blksze(&self) -> usize;
+    fn add_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
+    fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
+    fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error>; 
+    fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error>;
+}
+
+pub struct LzhSolver {
+    nvtxs: usize,
+    blksze: usize,
+    a: MapSparseMatrix,
     b: Array1<f64>,
 }
 
 #[allow(dead_code)]
-impl Solver {
+impl LzhSolver {
     pub fn new(mesh: &Mesh) -> Self {
         Self { 
-            size: mesh.num_vertex,
-            freedom: mesh.freedom,
-            a: SparseMatrix::new(mesh.num_vertex, mesh.freedom, &mesh.mesh_map), 
+            nvtxs: mesh.num_vertex,
+            blksze: mesh.freedom,
+            a: MapSparseMatrix::new(mesh.num_vertex, mesh.freedom, &mesh.mesh_map), 
             b: Array1::zeros(mesh.num_vertex * mesh.freedom), 
         }
     }
-    pub fn add_local_matrix(&mut self, lm: &Array2<f64>, fe: &Array2<usize>, index: usize) -> Result<(), Error> {
-        for j in 0..lm.shape()[0] {
-            for k in j..lm.shape()[1] {
-                let index1 = fe[[index, j / self.freedom]] * self.freedom + j % self.freedom;
-                let index2 = fe[[index, k / self.freedom]] * self.freedom + k % self.freedom;
-                self.a.add_element(index1, index2, lm[[j, k]])?;
-                if j != k {
-                    self.a.add_element(index2, index1, lm[[j, k]])?;
-                }
-            }
-        }
-        Ok(())
-    }
     // Метод сопряженных градиентов
     pub fn cg_solve(&self, eps: f64) -> Result<Array1<f64>, Error> {
-        let max_iter = 100 * self.size * self.freedom;
+        let max_iter = 100 * self.nvtxs * self.blksze;
         let mut x = self.b.clone();
         let mut r = &x - self.a.dot(&x);
         let mut z = r.clone();
@@ -72,7 +68,7 @@ impl Solver {
     }
     // Метод Ланцоша
     pub fn lzh_solve(&self, eps: f64) -> Result<Array1<f64>, Error> {
-        let max_iter = 2 * self.size * self.freedom;
+        let max_iter = 2 * self.nvtxs * self.blksze;
         let mut x = self.b.clone();
         let mut r = self.a.dot(&x) - &x;
         let mut s = r.clone();
@@ -111,13 +107,13 @@ impl Solver {
     // Нижняя треугольная матрица L представлена в виде вектора длиной (n + 1) * n / 2
     // L{ij} -> l{(i + 1) * i / 2 + j}, i <= j
     pub fn cho_solve(&mut self, eps: f64) -> Result<Array1<f64>, Error> {
-        let n = self.size * self.freedom;
+        let n = self.nvtxs * self.blksze;
         let mut l: Array1<f64> = Array1::zeros((n + 1) * n / 2);
         let mut msg = Messenger::new("Factorization of matrix", 1, n as i64, 1);
         // Факторизация матрицы A
         for i in 0..n {
             msg.add_progress();
-            l[(i + 1) * i / 2 + i] = self.a.get_element(i, i)?;
+            l[(i + 1) * i / 2 + i] = self.a.get_value(i, i)?;
             for k in 0..i {
                 if l[(i + 1) * i / 2 + k] != 0. {
                     l[(i + 1) * i / 2 + i] -= l[(i + 1) * i / 2 + k] * l[(i + 1) * i / 2 + k];
@@ -128,7 +124,7 @@ impl Solver {
                 return Err(Error::SingularMatrix);
             }
             for j in i + 1..n {
-                l[(j + 1) * j / 2 + i] = match self.a.get_element(j, i) {
+                l[(j + 1) * j / 2 + i] = match self.a.get_value(j, i) {
                     Ok(v) => v,
                     Err(_) => 0.,
                 };
@@ -166,35 +162,57 @@ impl Solver {
         msg.stop();
         Ok(x)
     }
-    pub fn set_load(&mut self, index: usize, val: f64) -> Result<(), Error>  {
-        if index >= self.size * self.freedom || index >= self.size * self.freedom  {
-            return Err(Error::InvalidIndex);
-        }
-        self.b[index] = val;
-        Ok(())
-    }
     pub fn add_load(&mut self, index: usize, val: f64) -> Result<(), Error>  {
-        if index >= self.size * self.freedom || index >= self.size * self.freedom  {
+        if index >= self.nvtxs * self.blksze || index >= self.nvtxs * self.blksze  {
             return Err(Error::InvalidIndex);
         }
         self.b[index] += val;
         Ok(())
     }
     pub fn set_boundary_condition(&mut self, index: usize, val: f64) -> Result<(), Error> {
-        if index >= self.size * self.freedom || index >= self.size * self.freedom  {
+        if index >= self.nvtxs * self.blksze || index >= self.nvtxs * self.blksze  {
             return Err(Error::InvalidIndex);
         }
-        for i in 0..self.size * self.freedom {
+        for i in 0..self.nvtxs * self.blksze {
             if i != index {
-                if self.a.set_element(index, i, 0.).is_err() {
+                if self.a.set_value(index, i, 0.).is_err() {
                     continue;
                 }
-                if self.a.set_element(i, index, 0.).is_err() {
+                if self.a.set_value(i, index, 0.).is_err() {
                     continue;
                 }
             }
         }
-        self.b[index] = val * self.a.get_element(index, index)?;
+        self.b[index] = val * self.a.get_value(index, index)?;
+        Ok(())
+    }
+}
+
+impl Solver for LzhSolver {
+    fn nvtxs(&self) -> usize {
+        self.nvtxs
+    }
+    fn blksze(&self) -> usize {
+        self.blksze
+    }
+    fn add_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error> {
+        self.a.add_value(index1, index2, value)
+    }
+    fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error> {
+        self.a.set_value(index1, index2, value)
+    }
+    fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error> {
+        if index >= self.nvtxs * self.blksze {
+            return Err(Error::InvalidIndex);
+        }
+        self.b[index] = val;
+        Ok(())
+    }
+    fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error> {
+        if index >= self.nvtxs * self.blksze {
+            return Err(Error::InvalidIndex);
+        }
+        self.b[index] += val;
         Ok(())
     }
 }

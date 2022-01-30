@@ -73,6 +73,7 @@ fn test_2d4() {
 fn test_3d4() {
     // let file_name = ("/home/serg/work/Qt/QFEM/mesh/balka.trpa", "/home/serg/work/Qt/QFEM/mesh/balka.res");
     let file_name = ("D:/Work/Qt/QFEM/mesh/balka.trpa", "D:/Work/Qt/QFEM/mesh/balka.res");
+    // let mesh_name = "D:/Work/Qt/QFEM/mesh/balka.trpa";
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
         Err(err) => {
             println!("{}", err.say_error());
