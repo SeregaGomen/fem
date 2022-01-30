@@ -45,8 +45,8 @@ fn test_1d2() {
 #[allow(dead_code)]
 fn test_2d4() {
     // let file_name = ("D:/Work/python/pyfem/mesh/console4.trpa", "D:/Work/python/pyfem/mesh/console4.res");
-    // let file_name = "D:/Work/python/pyfem/mesh/console.trpa";
-    let file_name = ("/home/homeniuk/work/python/pyfem/mesh/console4.trpa", "/home/homeniuk/work/python/pyfem/mesh/console4.res");
+    // let file_name = ("/home/serg/work/python/pyfem/mesh/console4.trpa", "/home/serg/work/python/pyfem/mesh/console4.res");
+    let file_name = ("/home/serg/work/Qt/QFEM/mesh/console/console4.trpa", "/home/serg/work/Qt/QFEM/mesh/console/console4.res");
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
         Err(err) => {
             println!("{}", err.say_error());
@@ -54,8 +54,12 @@ fn test_2d4() {
         }
         Ok(fem) => fem,
     };
-    fem.set_young_modulus(203200.0);
-    fem.set_poisons_ratio(0.27);
+    // fem.set_young_modulus(203200.0);
+    // fem.set_poisons_ratio(0.27);
+    fem.set_young_modulus(10.0);
+    fem.set_poisons_ratio(0.3);
+
+    
     fem.set_thickness(1.0);
     fem.add_boundary_condition("0", "x == 0", Direct::X | Direct::Y);
     // fem.add_concentrated_load(String::from("-1"), String::from("x == 10"), Direct::Y);
@@ -71,8 +75,8 @@ fn test_2d4() {
 
 #[allow(dead_code)]
 fn test_3d4() {
-    // let file_name = ("/home/serg/work/Qt/QFEM/mesh/balka.trpa", "/home/serg/work/Qt/QFEM/mesh/balka.res");
-    let file_name = ("D:/Work/Qt/QFEM/mesh/balka.trpa", "D:/Work/Qt/QFEM/mesh/balka.res");
+    let file_name = ("/home/homeniuk/work/Qt/QFEM/mesh/balka.trpa", "/home/homeniuk/work/Qt/QFEM/mesh/balka.res");
+    // let file_name = ("D:/Work/Qt/QFEM/mesh/balka.trpa", "D:/Work/Qt/QFEM/mesh/balka.res");
     // let mesh_name = "D:/Work/Qt/QFEM/mesh/balka.trpa";
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
         Err(err) => {
@@ -85,7 +89,7 @@ fn test_3d4() {
     fem.set_poisons_ratio(0.27);
     fem.add_boundary_condition("0", "y == 0", Direct::X | Direct::Y | Direct::Z);
     // fem.add_concentrated_load(String::from("-1"), String::from("y == 4"), Direct::Y);
-    fem.add_volume_load("-1", "", Direct::Y);
+    fem.add_volume_load("-100", "", Direct::Y);
     match fem.generate(file_name.1) {
         Err(err) => {
             println!("{}", err.say_error());
@@ -97,7 +101,6 @@ fn test_3d4() {
 
 #[allow(dead_code)]
 fn test_3d8() {
-    // let mesh_name = "D:/Work/python/pyfem/mesh/cube.trpa";
     let file_name = ("/home/serg/work/python/pyfem/mesh/cube.trpa", "/home/serg/work/python/pyfem/mesh/cube.res");
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
         Err(err) => {
@@ -162,7 +165,7 @@ fn test_shell_3() {
 fn main() {
     // test_1d2();
     // test_2d4();
-    test_3d4();
-    // test_3d8();
+    // test_3d4();
+    test_3d8();
     // test_shell_3();
 }

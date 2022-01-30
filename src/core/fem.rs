@@ -12,7 +12,7 @@ use ndarray::{Array1, Array2, prelude::*};
 use std::time::Instant;
 use crate::error::Error;
 use mesh::Mesh;
-use solver::{Solver, LzhSolver};
+use solver::{Solver, LzhSolver, EnvSolver};
 use fe::FEType;
 use parser::Parser;
 use msg::Messenger;
@@ -159,14 +159,13 @@ impl<'a> FEM<'a> {
     pub fn generate(&mut self, res_name: &str) -> Result<(), Error> {
         let time = Instant::now();
         let mut solver = LzhSolver::new(&self.mesh);
+        // let mut solver = EnvSolver::new(&self.mesh);
         self.set_global_matrix(&mut solver)?;
         self.set_concentrated_load(&mut solver)?;
         self.set_volume_load(&mut solver)?;
         self.set_surface_load(&mut solver)?;
         self.set_boundary_condition(&mut solver)?;
-        // let res = self.calc_results(&solver.cg_solve(self.param.eps)?);
-        // let res = self.calc_results(&solver.cho_solve(self.param.eps)?);
-        let res = &self.calc_results(&solver.lzh_solve(self.param.eps)?)?;
+        let res = &self.calc_results(&solver.solve(self.param.eps)?)?;
         self.print_summary(&res);
         println!("Lead time: {:.2?}", time.elapsed());
         self.save_results(&res, res_name)
@@ -221,7 +220,7 @@ impl<'a> FEM<'a> {
         // Копирование результатов расчета (перемещений)
         for i in 0..freedom {
             for j in 0..self.mesh.num_vertex {
-                res[[i, j]] = u[[j * freedom + i]];
+                res[[i, j]] = u[j * freedom + i];
             }
         }
         // Вычисление деформаций, напряжений, ...
