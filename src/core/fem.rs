@@ -178,8 +178,8 @@ impl<'a> FEM<'a> {
             let fe = self.calc_fe_matrix(i)?;
             for j in 0..fe.shape()[0] {
                 for k in j..fe.shape()[1] {
-                    let index1 = self.mesh.fe[[i, j / solver.blksze()]] * solver.blksze() + j % solver.blksze();
-                    let index2 = self.mesh.fe[[i, k / solver.blksze()]] * solver.blksze() + k % solver.blksze();
+                    let index1 = self.mesh.fe[[i, j / self.mesh.freedom]] * self.mesh.freedom + j % self.mesh.freedom;
+                    let index2 = self.mesh.fe[[i, k / self.mesh.freedom]] * self.mesh.freedom + k % self.mesh.freedom;
                     solver.add_matrix_value(index1, index2, fe[[j, k]])?;
                     if j != k {
                         solver.add_matrix_value(index2, index1, fe[[j, k]])?;

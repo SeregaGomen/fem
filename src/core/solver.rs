@@ -6,8 +6,6 @@ use super::msg::Messenger;
 use super::util;
 
 pub trait Solver {
-    fn nvtxs(&self) -> usize;
-    fn blksze(&self) -> usize;
     fn add_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
     fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
     fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error>; 
@@ -190,12 +188,6 @@ impl LzhSolver {
 }
 
 impl Solver for LzhSolver {
-    fn nvtxs(&self) -> usize {
-        self.nvtxs
-    }
-    fn blksze(&self) -> usize {
-        self.blksze
-    }
     fn add_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error> {
         self.a.add_value(index1, index2, value)
     }
