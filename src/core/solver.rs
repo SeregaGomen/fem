@@ -12,6 +12,7 @@ pub trait Solver {
     fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
     fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error>; 
     fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error>;
+    fn set_result_value(&mut self, index: usize, val: f64) -> Result<(), Error>;
 }
 
 pub struct LzhSolver {
@@ -162,30 +163,30 @@ impl LzhSolver {
         msg.stop();
         Ok(x)
     }
-    pub fn add_load(&mut self, index: usize, val: f64) -> Result<(), Error>  {
-        if index >= self.nvtxs * self.blksze || index >= self.nvtxs * self.blksze  {
-            return Err(Error::InvalidIndex);
-        }
-        self.b[index] += val;
-        Ok(())
-    }
-    pub fn set_boundary_condition(&mut self, index: usize, val: f64) -> Result<(), Error> {
-        if index >= self.nvtxs * self.blksze || index >= self.nvtxs * self.blksze  {
-            return Err(Error::InvalidIndex);
-        }
-        for i in 0..self.nvtxs * self.blksze {
-            if i != index {
-                if self.a.set_value(index, i, 0.).is_err() {
-                    continue;
-                }
-                if self.a.set_value(i, index, 0.).is_err() {
-                    continue;
-                }
-            }
-        }
-        self.b[index] = val * self.a.get_value(index, index)?;
-        Ok(())
-    }
+    // pub fn add_load(&mut self, index: usize, val: f64) -> Result<(), Error>  {
+    //     if index >= self.nvtxs * self.blksze || index >= self.nvtxs * self.blksze  {
+    //         return Err(Error::InvalidIndex);
+    //     }
+    //     self.b[index] += val;
+    //     Ok(())
+    // }
+    // pub fn set_boundary_condition(&mut self, index: usize, val: f64) -> Result<(), Error> {
+    //     if index >= self.nvtxs * self.blksze || index >= self.nvtxs * self.blksze  {
+    //         return Err(Error::InvalidIndex);
+    //     }
+    //     for i in 0..self.nvtxs * self.blksze {
+    //         if i != index {
+    //             if self.a.set_value(index, i, 0.).is_err() {
+    //                 continue;
+    //             }
+    //             if self.a.set_value(i, index, 0.).is_err() {
+    //                 continue;
+    //             }
+    //         }
+    //     }
+    //     self.b[index] = val * self.a.get_value(index, index)?;
+    //     Ok(())
+    // }
 }
 
 impl Solver for LzhSolver {
@@ -213,6 +214,13 @@ impl Solver for LzhSolver {
             return Err(Error::InvalidIndex);
         }
         self.b[index] += val;
+        Ok(())
+    }
+    fn set_result_value(&mut self, index: usize, val: f64) -> Result<(), Error> {
+        self.a.clear_row(index)?;
+        self.a.clear_col(index)?;
+        self.a.set_value(index, index, 1.)?;
+        self.b[index] = val;
         Ok(())
     }
 }

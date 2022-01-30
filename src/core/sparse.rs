@@ -6,6 +6,8 @@ pub trait SparseMatrix {
     fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
     fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
     fn get_value(&mut self, index1: usize, index2: usize) -> Result<f64, Error>;
+    fn clear_row(&mut self, index: usize) -> Result<(), Error>;
+    fn clear_col(&mut self, index: usize) -> Result<(), Error>;
 }
 
 pub struct MapSparseMatrix {
@@ -31,6 +33,31 @@ impl SparseMatrix for MapSparseMatrix {
         let pos = self.find(index1, index2)?;
         Ok(self.data[pos.0][pos.1])
     }
+    fn clear_row(&mut self, index: usize) -> Result<(), Error> {
+        if index >= self.nvtxs * self.blksze {
+            return Err(Error::InvalidIndex);    
+        }
+        for i in 0..self.data[index].len() {
+            self.data[index][i] = 0.;
+        }
+        Ok(())
+    }
+    fn clear_col(&mut self, index: usize) -> Result<(), Error> {
+        if index >= self.nvtxs * self.blksze {
+            return Err(Error::InvalidIndex);    
+        }
+        for i in 0..self.nvtxs * self.blksze {
+            match self.find(i, index) {
+                Err(_) => continue,
+                Ok(pos) => {
+                    self.data[i][pos.1] = 0.;
+                }
+                    
+            }
+        }
+        Ok(())
+    }
+
 }
 
 

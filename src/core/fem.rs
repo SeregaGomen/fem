@@ -255,7 +255,7 @@ impl<'a> FEM<'a> {
         }
         Ok(res)
     }
-    fn set_boundary_condition(&mut self, solver: &mut LzhSolver) -> Result<(), Error> {
+    fn set_boundary_condition(&mut self, solver: &mut impl Solver) -> Result<(), Error> {
         let mut msg = Messenger::new("Using of boundary conditions", 1, self.mesh.num_vertex as i64, 5);
         for i in 0..self.mesh.num_vertex {
             msg.add_progress();
@@ -267,13 +267,13 @@ impl<'a> FEM<'a> {
                     }
                     let val = it.get_value(&x)?;
                     if it.direct.contains(Direct::X) {
-                        solver.set_boundary_condition(i * self.mesh.freedom + 0, val)?;    
+                        solver.set_result_value(i * self.mesh.freedom + 0, val)?;    
                     }
                     if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
-                        solver.set_boundary_condition(i * self.mesh.freedom + 1, val)?;    
+                        solver.set_result_value(i * self.mesh.freedom + 1, val)?;    
                     }
                     if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
-                        solver.set_boundary_condition(i * self.mesh.freedom + 2, val)?;    
+                        solver.set_result_value(i * self.mesh.freedom + 2, val)?;    
                     }
                 }
             }
