@@ -252,6 +252,7 @@ impl EnvSparseMatrix {
             }
             self.diag[i] = temp.sqrt();
         }
+        msg.stop();
         true
     }
     // Решение нижней треугольной системы L*X = RHS
@@ -294,8 +295,10 @@ impl EnvSparseMatrix {
     // Решение верхней треугольной системы профильным методом
     fn euslv(&self, neqns: usize, diag: &[f64], env: &[f64], xenv: &[usize], rhs: &[f64]) -> Vec<f64> {
         let mut res: Vec<f64> = Vec::new();
+        let mut msg = Messenger::new("Solution of the system of equations", 1, neqns as i64, 1);
         res.extend_from_slice(rhs);
         for i in (0..neqns).rev() {
+            msg.add_progress();
             if res[i] != 0. {
                 let s = res[i] / diag[i];
                 res[i] = s;
