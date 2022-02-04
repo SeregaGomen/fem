@@ -8,7 +8,7 @@ use super::msg::Messenger;
 pub trait SparseMatrix {
     fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
     fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
-    fn get_value(&mut self, index1: usize, index2: usize) -> Result<f64, Error>;
+    fn get_value(&self, index1: usize, index2: usize) -> Result<f64, Error>;
     fn solve(&mut self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, Error>;
 }
 
@@ -40,7 +40,7 @@ impl SparseMatrix for MapSparseMatrix {
         self.data[pos.0][pos.1] = value;
         Ok(())
     }
-    fn get_value(&mut self, index1: usize, index2: usize) -> Result<f64, Error> {
+    fn get_value(&self, index1: usize, index2: usize) -> Result<f64, Error> {
         let pos = self.find(index1, index2)?;
         Ok(self.data[pos.0][pos.1])
     }
@@ -79,7 +79,7 @@ impl SparseMatrix for EnvSparseMatrix {
         }
         Ok(())
     }
-    fn get_value(&mut self, i: usize, j: usize) -> Result<f64, Error> {
+    fn get_value(&self, i: usize, j: usize) -> Result<f64, Error> {
         if i >= j {
             if i == j {
                 return Ok(self.diag[i]);

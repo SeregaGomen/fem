@@ -7,6 +7,7 @@ pub trait Solver {
     fn size(&self) -> usize;
     fn add_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
     fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
+    fn get_matrix_value(&self, index1: usize, index2: usize) -> Result<f64, Error>;
     fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error>; 
     fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error>;
     fn solve(&mut self, eps: f64) -> Result<Array1<f64>, Error>;
@@ -18,11 +19,8 @@ pub trait Solver {
                 }
                 self.set_matrix_value(i, index, 0.)?;
             }
-            else {
-                self.set_matrix_value(i, i, 1.)?;
-            }
         }
-        self.set_vector_value(index, val)?;
+        self.set_vector_value(index, val * self.get_matrix_value(index, index)?)?;
         Ok(())
     }
 }
@@ -72,6 +70,9 @@ impl Solver for LzhSolver {
     fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error> {
         self.a.set_value(index1, index2, value)
     }
+    fn get_matrix_value(&self, index1: usize, index2: usize) -> Result<f64, Error> {
+        self.a.get_value(index1, index2)
+    }
     fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error> {
         if index >= self.size {
             return Err(Error::InvalidIndex);
@@ -100,6 +101,9 @@ impl Solver for EnvSolver {
     }
     fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error> {
         self.a.set_value(index1, index2, value)
+    }
+    fn get_matrix_value(&self, index1: usize, index2: usize) -> Result<f64, Error> {
+        self.a.get_value(index1, index2)
     }
     fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error> {
         if index >= self.size {

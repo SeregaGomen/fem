@@ -9,7 +9,7 @@ mod error;
 // 4. Параллельное умножение матрицы на число (x)
 // 5. unwrap() (Parser)
 // 6. Sparse - попробовать крайт sprs
-// 7. Запись в mesh-файл информации о связях
+// 7. Запись в mesh-файл информации о связях (x)
 // 8. Вывод на экран информации о погрешности при итерационном решении СЛАУ
 // 9. Запись результатов (x)
 
@@ -134,9 +134,9 @@ fn test_3d8() {
 
 #[allow(dead_code)]
 fn test_shell_3() {
-    let file_name = ("D:/work/python/pyfem/mesh/shell-tube-3.trpa", "D:/work/python/pyfem/mesh/shell-tube-3.res");
-    // let file_name = ("/home/homeniuk/work/python/pyfem/mesh/shell-tube-3.trpa", "/home/homeniuk/work/python/pyfem/mesh/shell-tube-3.res");
-    // let file_name = ("/home/homeniuk/work/python/pyfem/mesh/shell4_1_0.trpa", "/home/homeniuk/work/python/pyfem/mesh/shell4_1_0.res");
+    // let file_name = ("D:/work/python/pyfem/mesh/shell-tube-3.trpa", "D:/work/python/pyfem/mesh/shell-tube-3.res");
+    // let file_name = ("/home/serg/work/python/pyfem/mesh/shell-tube-3.trpa", "/home/serg/work/python/pyfem/mesh/shell-tube-3.res");
+    let file_name = ("/home/serg/work/python/pyfem/mesh/shell4_1_0.trpa", "/home/serg/work/python/pyfem/mesh/shell4_1_0.res");
     // let file_name = ("D:/work/python/pyfem/mesh/shell4_1_0.trpa", "D:/work/python/pyfem/mesh/shell4_1_0.res");
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
         Err(err) => {
@@ -166,6 +166,6 @@ fn main() {
     // test_1d2();
     // test_2d4();
     // test_3d4();
-    test_3d8();
-    // test_shell_3();
+    // test_3d8();
+    test_shell_3();
 }
