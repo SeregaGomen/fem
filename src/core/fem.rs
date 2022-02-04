@@ -158,8 +158,8 @@ impl<'a> FEM<'a> {
     }
     pub fn generate(&mut self, res_name: &str) -> Result<(), Error> {
         let time = Instant::now();
-        let mut solver = LzhSolver::new(&self.mesh);
-        // let mut solver = EnvSolver::new(&self.mesh);
+        // let mut solver = LzhSolver::new(&self.mesh);
+        let mut solver = EnvSolver::new(&self.mesh);
         self.set_global_matrix(&mut solver)?;
         self.set_concentrated_load(&mut solver)?;
         self.set_volume_load(&mut solver)?;
