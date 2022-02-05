@@ -231,15 +231,8 @@ impl EnvSparseMatrix {
             if iband != 0 {
                 let ifirst = i - iband;
                 // Вычислить строку i треугольного множителя
-                ////////////////
                 let res = self.elslv(iband, &self.diag[ifirst..], &self.env, &self.xenv[ifirst..], &self.env[ixenv..]);
-                // env[ifirst..] = res;   
-                for j in 0..res.len() {
-                    self.env[ixenv + j] = res[j];
-                }         
-                ////////////////
-    
-    
+                res.iter().enumerate().for_each(|(i, x)| { self.env[ixenv + i] = *x; });
                 let jstop = self.xenv[i + 1];
                 for j in ixenv..jstop {
                     let s = self.env[j]; 
