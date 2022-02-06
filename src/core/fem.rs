@@ -12,7 +12,8 @@ use ndarray::{Array1, Array2, prelude::*};
 use std::time::Instant;
 use crate::error::Error;
 use mesh::Mesh;
-use solver::{Solver, LzhSolver, EnvSolver};
+// use solver::{Solver, LzhSolver, EnvSolver};
+use solver::{Solver, LzhSolver};
 use fe::FEType;
 use parser::Parser;
 use msg::Messenger;
@@ -158,8 +159,8 @@ impl<'a> FEM<'a> {
     }
     pub fn generate(&mut self, res_name: &str) -> Result<(), Error> {
         let time = Instant::now();
-        // let mut solver = LzhSolver::new(&self.mesh);
-        let mut solver = EnvSolver::new(&self.mesh);
+        let mut solver = LzhSolver::new(&self.mesh);
+        // let mut solver = EnvSolver::new(&self.mesh);
         self.set_global_matrix(&mut solver)?;
         self.set_concentrated_load(&mut solver)?;
         self.set_volume_load(&mut solver)?;

@@ -32,17 +32,17 @@ impl SparseMatrix for MapSparseMatrix {
     fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error> {
         let pos = self.find(index1, index2)?;
         //println!("{} - {}", pos.0, pos.1);
-        self.data[pos.0][pos.1] += value;
+        self.data[index1][pos] += value;
         Ok(())
     }
     fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error> {
         let pos = self.find(index1, index2)?;
-        self.data[pos.0][pos.1] = value;
+        self.data[index1][pos] = value;
         Ok(())
     }
     fn get_value(&self, index1: usize, index2: usize) -> Result<f64, Error> {
         let pos = self.find(index1, index2)?;
-        Ok(self.data[pos.0][pos.1])
+        Ok(self.data[index1][pos])
     }
     fn solve(&mut self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, Error> {
         self.lzh_solve(rhs, eps)
@@ -114,14 +114,14 @@ impl MapSparseMatrix {
         }
         Self{nvtxs, blksze, map: map.clone(), data}
     }
-    fn find(&self, index1: usize, index2: usize) -> Result<(usize, usize), Error> {
-        let row: usize = index1 / self.blksze;
+    fn find(&self, index1: usize, index2: usize) -> Result<usize, Error> {
         if index1 >= self.nvtxs * self.blksze || index2 >= self.nvtxs * self.blksze  {
             return Err(Error::InvalidIndex);
         } 
+        let row: usize = index1 / self.blksze;
         for i in 0..self.map[row].len() {
             if self.map[row][i] == index2 / self.blksze  {
-                return Ok((index1, i * self.blksze + index2 % self.blksze));
+                return Ok(i * self.blksze + index2 % self.blksze);
             }
         }
         Err(Error::InvalidIndex)

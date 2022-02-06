@@ -1,6 +1,9 @@
 // Утилиты
+use std::io::prelude::*;
+use std::str;
 use ndarray::prelude::*;
 use crate::error::Error;
+
 
 #[allow(dead_code)]
 // Решение СЛАУ методом Гаусса
@@ -170,4 +173,27 @@ pub fn create_ext_transform_matrix(v: &Array2<f64>, size: usize, freedom: usize)
         }
     }    
     m
+}
+
+// Чтение первой непустой строки из файла
+pub fn get_line<R: BufRead>(reader: &mut R) -> Result<String, Error> {
+    let mut res;
+    let mut bytes: Vec<u8> = Vec::new();
+    loop {
+        let len = match reader.read_until(b'\n', &mut bytes) {
+            Err(_) => return Err(Error::ReadFile),
+            Ok(len) => len,
+        };
+        if len == 0 {
+            return Ok(String::new());
+        }
+        res = match str::from_utf8(&bytes) {
+            Ok(res) => res,
+            Err(_) => return Err(Error::InvalidNumber),
+        };
+        if res.trim().len() > 0 {
+            break;
+        }
+    }
+    Ok(res.to_string())
 }
