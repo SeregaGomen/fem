@@ -101,7 +101,8 @@ fn test_3d4() {
 
 #[allow(dead_code)]
 fn test_3d8() {
-    let file_name = ("/home/serg/work/python/pyfem/mesh/cube.trpa", "/home/serg/work/python/pyfem/mesh/cube.res");
+    let file_name = ("D:/work/python/pyfem/mesh/cube.trpa", "D:/work/python/pyfem/mesh/cube.res");
+    // let file_name = ("/home/serg/work/python/pyfem/mesh/cube.trpa", "/home/serg/work/python/pyfem/mesh/cube.res");
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
         Err(err) => {
             println!("{}", err.say_error());
@@ -134,8 +135,8 @@ fn test_3d8() {
 
 #[allow(dead_code)]
 fn test_shell_3() {
-    // let file_name = ("D:/work/python/pyfem/mesh/shell-tube-3.trpa", "D:/work/python/pyfem/mesh/shell-tube-3.res");
-    let file_name = ("/home/homeniuk/work/python/pyfem/mesh/shell-tube-3.trpa", "/home/homeniuk/work/python/pyfem/mesh/shell-tube-3.res");
+    let file_name = ("D:/work/python/pyfem/mesh/shell-tube-3.trpa", "D:/work/python/pyfem/mesh/shell-tube-3.res");
+    // let file_name = ("/home/serg/work/python/pyfem/mesh/shell-tube-3.trpa", "/home/serg/work/python/pyfem/mesh/shell-tube-3.res");
     // let file_name = ("/home/serg/work/python/pyfem/mesh/shell4_1_0.trpa", "/home/serg/work/python/pyfem/mesh/shell4_1_0.res");
     // let file_name = ("D:/work/python/pyfem/mesh/shell4_1_0.trpa", "D:/work/python/pyfem/mesh/shell4_1_0.res");
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
@@ -166,6 +167,6 @@ fn main() {
     // test_1d2();
     // test_2d4();
     // test_3d4();
-    // test_3d8();
-    test_shell_3();
+    test_3d8();
+    // test_shell_3();
 }

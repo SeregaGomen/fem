@@ -3,7 +3,7 @@ use crate::error::Error;
 use super::sparse::{SparseMatrix, MapSparseMatrix, EnvSparseMatrix};
 use super::mesh::Mesh;
 
-pub trait Solver {
+pub trait Solver: Send {
     fn size(&self) -> usize;
     fn add_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
     fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
@@ -37,6 +37,8 @@ pub struct EnvSolver {
     b: Array1<f64>,
 }
 
+//unsafe impl Send for LzhSolver {}
+//unsafe impl Send for EnvSolver {}
 
 #[allow(dead_code)]
 impl LzhSolver {

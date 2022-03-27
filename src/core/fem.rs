@@ -7,13 +7,15 @@ mod solver;
 mod parser;
 mod msg;
 
+use crossbeam::thread;
 use bitflags::bitflags;
 use ndarray::{Array1, Array2, prelude::*};
 use std::time::Instant;
 use crate::error::Error;
 use mesh::Mesh;
 // use solver::{Solver, LzhSolver, EnvSolver};
-use solver::{Solver, LzhSolver};
+// use solver::{Solver, LzhSolver};
+use solver::{Solver, EnvSolver};
 use fe::FEType;
 use parser::Parser;
 use msg::Messenger;
@@ -159,7 +161,7 @@ impl<'a> FEM<'a> {
     }
     pub fn generate(&mut self, res_name: &str) -> Result<(), Error> {
         let time = Instant::now();
-        let mut solver = LzhSolver::new(&self.mesh);
+        let mut solver = EnvSolver::new(&self.mesh);
         // let mut solver = EnvSolver::new(&self.mesh);
         self.set_global_matrix(&mut solver)?;
         self.set_concentrated_load(&mut solver)?;
@@ -171,22 +173,50 @@ impl<'a> FEM<'a> {
         println!("Lead time: {:.2?}", time.elapsed());
         self.save_results(&res, res_name)
     }
-    fn set_global_matrix(&mut self, solver: &mut impl Solver) -> Result<(), Error> {
+    // fn set_global_matrix(&mut self, solver: &mut impl Solver) -> Result<(), Error> {
+    //     let mut msg = Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5);
+    //     for i in 0..self.mesh.num_fe {
+    //         msg.add_progress();
+    //         let fe = self.calc_fe_matrix(i)?;
+    //         for j in 0..fe.shape()[0] {
+    //             for k in j..fe.shape()[1] {
+    //                 let index1 = self.mesh.fe[[i, j / self.mesh.freedom]] * self.mesh.freedom + j % self.mesh.freedom;
+    //                 let index2 = self.mesh.fe[[i, k / self.mesh.freedom]] * self.mesh.freedom + k % self.mesh.freedom;
+    //                 solver.add_matrix_value(index1, index2, fe[[j, k]])?;
+    //                 if j != k {
+    //                     solver.add_matrix_value(index2, index1, fe[[j, k]])?;
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     Ok(())
+    // }
+    fn set_global_matrix(&self, solver: &mut impl Solver) -> Result<(), Error> {
+        const NTHREADS: usize = 1;
         let mut msg = Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5);
-        for i in 0..self.mesh.num_fe {
-            msg.add_progress();
-            let fe = self.calc_fe_matrix(i)?;
-            for j in 0..fe.shape()[0] {
-                for k in j..fe.shape()[1] {
-                    let index1 = self.mesh.fe[[i, j / self.mesh.freedom]] * self.mesh.freedom + j % self.mesh.freedom;
-                    let index2 = self.mesh.fe[[i, k / self.mesh.freedom]] * self.mesh.freedom + k % self.mesh.freedom;
-                    solver.add_matrix_value(index1, index2, fe[[j, k]])?;
-                    if j != k {
-                        solver.add_matrix_value(index2, index1, fe[[j, k]])?;
-                    }
-                }
+        for i in (0..self.mesh.num_fe).step_by(NTHREADS) {
+            let num = if i + NTHREADS <= self.mesh.num_fe { NTHREADS } else { self.mesh.num_fe % NTHREADS };
+            for l in 0..num {
+                msg.add_progress();
+                thread::scope(|s| {
+                    s.spawn(|_| -> Result<(), Error> {
+                        let fe = self.calc_fe_matrix(i + l)?;
+                        for j in 0..fe.shape()[0] {
+                            for k in j..fe.shape()[1] {
+                                let index1 = self.mesh.fe[[i + l, j / self.mesh.freedom]] * self.mesh.freedom + j % self.mesh.freedom;
+                                let index2 = self.mesh.fe[[i + l, k / self.mesh.freedom]] * self.mesh.freedom + k % self.mesh.freedom;
+                                solver.add_matrix_value(index1, index2, fe[[j, k]])?;
+                                if j != k {
+                                    solver.add_matrix_value(index2, index1, fe[[j, k]])?;
+                                }
+                            }
+                        }
+                        Ok(())
+                    });
+                }).unwrap();
             }
         }
+        msg.stop();
         Ok(())
     }
     fn num_results(&self) -> usize {
