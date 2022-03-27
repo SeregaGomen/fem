@@ -14,8 +14,8 @@ use std::time::Instant;
 use crate::error::Error;
 use mesh::Mesh;
 // use solver::{Solver, LzhSolver, EnvSolver};
-// use solver::{Solver, LzhSolver};
-use solver::{Solver, EnvSolver};
+use solver::{Solver, LzhSolver};
+// use solver::{Solver, EnvSolver};
 use fe::FEType;
 use parser::Parser;
 use msg::Messenger;
@@ -93,11 +93,12 @@ struct FEMParameter<'a> {
     e: [f64; 2],
     thk: f64,
     eps: f64,
+    nthreads: usize,
 }
 
 impl<'a> FEMParameter<'a> {
     fn new() -> Self {
-        Self { param: Vec::new(), e: [0., 0.], thk: 0., eps: 1.0e-6 }
+        Self { param: Vec::new(), e: [0., 0.], thk: 0., eps: 1.0e-6, nthreads: 1 }
     }
     fn find_parameter(&self, param: ParamType) -> bool {
         for i in &self.param {
@@ -119,6 +120,9 @@ impl<'a> FEM<'a> {
     pub fn new(mesh_name: &str) -> Result<Self, Error> {
         let mesh = Mesh::new(mesh_name)?;
         Ok(Self {mesh, param: FEMParameter::new()})
+    }
+    pub fn set_num_threads(&mut self, nthreads: usize) {
+        self.param.nthreads = nthreads;
     }
     pub fn set_young_modulus(&mut self, e: f64) {
         self.param.e[0] = e;
@@ -161,7 +165,7 @@ impl<'a> FEM<'a> {
     }
     pub fn generate(&mut self, res_name: &str) -> Result<(), Error> {
         let time = Instant::now();
-        let mut solver = EnvSolver::new(&self.mesh);
+        let mut solver = LzhSolver::new(&self.mesh);
         // let mut solver = EnvSolver::new(&self.mesh);
         self.set_global_matrix(&mut solver)?;
         self.set_concentrated_load(&mut solver)?;
@@ -173,29 +177,10 @@ impl<'a> FEM<'a> {
         println!("Lead time: {:.2?}", time.elapsed());
         self.save_results(&res, res_name)
     }
-    // fn set_global_matrix(&mut self, solver: &mut impl Solver) -> Result<(), Error> {
-    //     let mut msg = Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5);
-    //     for i in 0..self.mesh.num_fe {
-    //         msg.add_progress();
-    //         let fe = self.calc_fe_matrix(i)?;
-    //         for j in 0..fe.shape()[0] {
-    //             for k in j..fe.shape()[1] {
-    //                 let index1 = self.mesh.fe[[i, j / self.mesh.freedom]] * self.mesh.freedom + j % self.mesh.freedom;
-    //                 let index2 = self.mesh.fe[[i, k / self.mesh.freedom]] * self.mesh.freedom + k % self.mesh.freedom;
-    //                 solver.add_matrix_value(index1, index2, fe[[j, k]])?;
-    //                 if j != k {
-    //                     solver.add_matrix_value(index2, index1, fe[[j, k]])?;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     Ok(())
-    // }
     fn set_global_matrix(&self, solver: &mut impl Solver) -> Result<(), Error> {
-        const NTHREADS: usize = 1;
         let mut msg = Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5);
-        for i in (0..self.mesh.num_fe).step_by(NTHREADS) {
-            let num = if i + NTHREADS <= self.mesh.num_fe { NTHREADS } else { self.mesh.num_fe % NTHREADS };
+        for i in (0..self.mesh.num_fe).step_by(self.param.nthreads) {
+            let num = if i + self.param.nthreads <= self.mesh.num_fe { self.param.nthreads } else { self.mesh.num_fe % self.param.nthreads };
             for l in 0..num {
                 msg.add_progress();
                 thread::scope(|s| {
@@ -256,25 +241,31 @@ impl<'a> FEM<'a> {
         }
         // Вычисление деформаций, напряжений, ...
         let mut msg = Messenger::new("Calculation of standard finite element results", 1, self.mesh.num_fe as i64, 5);
-        for i in 0..self.mesh.num_fe {
-            msg.add_progress();
-            // Формируем вектор перемещений для текущего КЭ
-            let mut fe_u = Array1::zeros(fe_size * freedom);
-            for j in 0..fe_size {
-                for k in 0..freedom {
-                    fe_u[j * freedom + k] = u[freedom * self.mesh.fe[[i, j]] + k];
-                }
-            }
-            // println!("\n{:?}", fe_u);
-            let fe_res = self.calc_fe_results(i, fe_u)?; 
-            // println!("\n{:?}", fe_res);
-            for j in 0..self.num_results() - freedom {
-                for k in 0..fe_size {
-                    res[[j + freedom, self.mesh.fe[[i, k]]]] += fe_res[[j, k]];
-                    if j == 0 {
-                        counter[self.mesh.fe[[i, k]]] += 1;
-                    }
-                }
+        for i in (0..self.mesh.num_fe).step_by(self.param.nthreads) {
+            let num = if i + self.param.nthreads <= self.mesh.num_fe { self.param.nthreads } else { self.mesh.num_fe % self.param.nthreads };
+            for l in 0..num {
+                msg.add_progress();
+                thread::scope(|s| {
+                    s.spawn(|_| -> Result<(), Error> {
+                        // Формируем вектор перемещений для текущего КЭ
+                        let mut fe_u = Array1::zeros(fe_size * freedom);
+                        for j in 0..fe_size {
+                            for k in 0..freedom {
+                                fe_u[j * freedom + k] = u[freedom * self.mesh.fe[[i + l, j]] + k];
+                            }
+                        }
+                        let fe_res = self.calc_fe_results(i + l, fe_u)?; 
+                        for j in 0..self.num_results() - freedom {
+                            for k in 0..fe_size {
+                                res[[j + freedom, self.mesh.fe[[i + l, k]]]] += fe_res[[j, k]];
+                                if j == 0 {
+                                    counter[self.mesh.fe[[i + l, k]]] += 1;
+                                }
+                            }
+                        }
+                        Ok(())
+                    });
+                }).unwrap();
             }
         }
         // Осредняем результаты
@@ -287,25 +278,33 @@ impl<'a> FEM<'a> {
     }
     fn set_boundary_condition(&mut self, solver: &mut impl Solver) -> Result<(), Error> {
         let mut msg = Messenger::new("Using of boundary conditions", 1, self.mesh.num_vertex as i64, 5);
-        for i in 0..self.mesh.num_vertex {
-            msg.add_progress();
-            for it in &self.param.param {
-                if it.p_type == ParamType::BoundaryCondition {
-                    let x = self.mesh.x.row(i);
-                    if it.get_predicate(&x)? == false {
-                        continue;
-                    }
-                    let val = it.get_value(&x)?;
-                    if it.direct.contains(Direct::X) {
-                        solver.set_result_value(i * self.mesh.freedom + 0, val)?;    
-                    }
-                    if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
-                        solver.set_result_value(i * self.mesh.freedom + 1, val)?;    
-                    }
-                    if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
-                        solver.set_result_value(i * self.mesh.freedom + 2, val)?;    
-                    }
-                }
+        for i in (0..self.mesh.num_vertex).step_by(self.param.nthreads) {
+            let num = if i + self.param.nthreads <= self.mesh.num_vertex { self.param.nthreads } else { self.mesh.num_vertex % self.param.nthreads };
+            for l in 0..num {
+                msg.add_progress();
+                thread::scope(|s| {
+                    s.spawn(|_| -> Result<(), Error> {
+                        for it in &self.param.param {
+                            if it.p_type == ParamType::BoundaryCondition {
+                                let x = self.mesh.x.row(i + l);
+                                if it.get_predicate(&x)? == false {
+                                    continue;
+                                }
+                                let val = it.get_value(&x)?;
+                                if it.direct.contains(Direct::X) {
+                                    solver.set_result_value((i + l) * self.mesh.freedom + 0, val)?;    
+                                }
+                                if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
+                                    solver.set_result_value((i + l) * self.mesh.freedom + 1, val)?;    
+                                }
+                                if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
+                                    solver.set_result_value((i + l) * self.mesh.freedom + 2, val)?;    
+                                }
+                            }
+                        }
+                        Ok(())
+                    });
+                }).unwrap();
             }
         }
         Ok(())
@@ -340,28 +339,36 @@ impl<'a> FEM<'a> {
     fn set_volume_load(&mut self, solver: &mut impl Solver) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::VolumeLoad) {
             let mut msg = Messenger::new("Calculation of volume loads", 1, self.mesh.num_fe as i64, 5);
-            for i in 0..self.mesh.num_fe {
-                msg.add_progress();
-                for it in &self.param.param {
-                    if it.p_type == ParamType::VolumeLoad {
-                        let x = self.mesh.get_fe_coord(i);
-                        if !self.check_elem(&x, &it)? {
-                            continue;
-                        }
-                        let share = self.volume_load_share() * self.mesh.fe_volume(i); 
-                        for j in 0..self.mesh.fe.shape()[1] {
-                            let val = it.get_value(&x.row(j))? * share[j];
-                            if it.direct.contains(Direct::X) {
-                                solver.add_vector_value(self.mesh.fe[[i, j]] * self.mesh.freedom + 0, val)?;    
+            for i in (0..self.mesh.num_fe).step_by(self.param.nthreads) {
+                let num = if i + self.param.nthreads <= self.mesh.num_fe { self.param.nthreads } else { self.mesh.num_fe % self.param.nthreads };
+                for l in 0..num {
+                    msg.add_progress();
+                    thread::scope(|s| {
+                        s.spawn(|_| -> Result<(), Error> {
+                            for it in &self.param.param {
+                                if it.p_type == ParamType::VolumeLoad {
+                                    let x = self.mesh.get_fe_coord(i + l);
+                                    if !self.check_elem(&x, &it)? {
+                                        continue;
+                                    }
+                                    let share = self.volume_load_share() * self.mesh.fe_volume(i + l); 
+                                    for j in 0..self.mesh.fe.shape()[1] {
+                                        let val = it.get_value(&x.row(j))? * share[j];
+                                        if it.direct.contains(Direct::X) {
+                                            solver.add_vector_value(self.mesh.fe[[i + l, j]] * self.mesh.freedom + 0, val)?;    
+                                        }
+                                        if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
+                                            solver.add_vector_value(self.mesh.fe[[i + l, j]] * self.mesh.freedom + 1, val)?;    
+                                        }
+                                        if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
+                                            solver.add_vector_value(self.mesh.fe[[i + l, j]] * self.mesh.freedom + 2, val)?;    
+                                        }
+                                    }
+                                }
                             }
-                            if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
-                                solver.add_vector_value(self.mesh.fe[[i, j]] * self.mesh.freedom + 1, val)?;    
-                            }
-                            if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
-                                solver.add_vector_value(self.mesh.fe[[i, j]] * self.mesh.freedom + 2, val)?;    
-                            }
-                        }
-                    }
+                            Ok(())
+                        });
+                    }).unwrap();
                 }
             }
         }

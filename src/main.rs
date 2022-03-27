@@ -110,6 +110,7 @@ fn test_3d8() {
         }
         Ok(fem) => fem,
     };
+    fem.set_num_threads(4);
     fem.set_young_modulus(203200.);
     fem.set_poisons_ratio(0.27);
     
@@ -146,6 +147,7 @@ fn test_shell_3() {
         }
         Ok(fem) => fem,
     };
+    fem.set_num_threads(4);
     fem.set_young_modulus(203200.);
     fem.set_poisons_ratio(0.27);
     fem.set_thickness(0.0369);
