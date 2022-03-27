@@ -312,25 +312,33 @@ impl<'a> FEM<'a> {
     fn set_concentrated_load(&mut self, solver: &mut impl Solver) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::ConcentratedLoad) {
             let mut msg = Messenger::new("Calculation of concentrated loads", 1, self.mesh.num_vertex as i64, 5);
-            for i in 0..self.mesh.num_vertex {
-                msg.add_progress();
-                for it in &self.param.param {
-                    if it.p_type == ParamType::ConcentratedLoad {
-                        let x = self.mesh.x.row(i);
-                        if it.get_predicate(&x)? == false {
-                            continue;
-                        }
-                        let val = it.get_value(&x)?;
-                        if it.direct.contains(Direct::X) {
-                            solver.set_vector_value(i * self.mesh.freedom + 0, val)?;    
-                        }
-                        if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
-                            solver.set_vector_value(i * self.mesh.freedom + 1, val)?;    
-                        }
-                        if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
-                            solver.set_vector_value(i * self.mesh.freedom + 2, val)?;    
-                        }
-                    }
+            for i in (0..self.mesh.num_vertex).step_by(self.param.nthreads) {
+                let num = if i + self.param.nthreads <= self.mesh.num_vertex { self.param.nthreads } else { self.mesh.num_vertex % self.param.nthreads };
+                for l in 0..num {
+                    msg.add_progress();
+                    thread::scope(|s| {
+                        s.spawn(|_| -> Result<(), Error> {
+                            for it in &self.param.param {
+                                if it.p_type == ParamType::ConcentratedLoad {
+                                    let x = self.mesh.x.row(i + l);
+                                    if it.get_predicate(&x)? == false {
+                                        continue;
+                                    }
+                                    let val = it.get_value(&x)?;
+                                    if it.direct.contains(Direct::X) {
+                                        solver.set_vector_value((i + l) * self.mesh.freedom + 0, val)?;    
+                                    }
+                                    if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
+                                        solver.set_vector_value((i + l) * self.mesh.freedom + 1, val)?;    
+                                    }
+                                    if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
+                                        solver.set_vector_value((i + l) * self.mesh.freedom + 2, val)?;    
+                                    }
+                                }
+                            }
+                            Ok(())
+                        });
+                    }).unwrap();
                 }
             }
         }
@@ -377,30 +385,38 @@ impl<'a> FEM<'a> {
     fn set_surface_load(&mut self, solver: &mut impl Solver) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::PressureLoad) || self.param.find_parameter(ParamType::SurfaceLoad) {
             let mut msg = Messenger::new("Calculation of surface loads", 1, self.mesh.num_be as i64, 5);
-            for i in 0..self.mesh.num_be {
-                msg.add_progress();
-                for it in &self.param.param {
-                    if it.p_type == ParamType::PressureLoad || it.p_type == ParamType::SurfaceLoad {
-                        let x = self.mesh.get_be_coord(i);
-                        if !self.check_elem(&x, &it)? {
-                            continue;
-                        }
-                        let share = self.surface_load_share() * self.mesh.be_volume(i); 
-                        // println!("\n{:?}", share);
-                        let normal = if it.p_type == ParamType::PressureLoad { self.mesh.be_normal(i) } else { array![1., 1., 1.] };
-                        for j in 0..self.mesh.be.shape()[1] {
-                            let val = it.get_value(&x.row(j))? * share[j];
-                            if it.direct.contains(Direct::X) {
-                                solver.add_vector_value(self.mesh.be[[i, j]] * self.mesh.freedom + 0, val * normal[0])?;    
+
+            for i in (0..self.mesh.num_be).step_by(self.param.nthreads) {
+                let num = if i + self.param.nthreads <= self.mesh.num_be { self.param.nthreads } else { self.mesh.num_be % self.param.nthreads };
+                for l in 0..num {
+                    msg.add_progress();
+                    thread::scope(|s| {
+                        s.spawn(|_| -> Result<(), Error> {
+                            for it in &self.param.param {
+                                if it.p_type == ParamType::PressureLoad || it.p_type == ParamType::SurfaceLoad {
+                                    let x = self.mesh.get_be_coord(i + l);
+                                    if !self.check_elem(&x, &it)? {
+                                        continue;
+                                    }
+                                    let share = self.surface_load_share() * self.mesh.be_volume(i + l); 
+                                    let normal = if it.p_type == ParamType::PressureLoad { self.mesh.be_normal(i + l) } else { array![1., 1., 1.] };
+                                    for j in 0..self.mesh.be.shape()[1] {
+                                        let val = it.get_value(&x.row(j))? * share[j];
+                                        if it.direct.contains(Direct::X) {
+                                            solver.add_vector_value(self.mesh.be[[i + l, j]] * self.mesh.freedom + 0, val * normal[0])?;    
+                                        }
+                                        if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
+                                            solver.add_vector_value(self.mesh.be[[i + l, j]] * self.mesh.freedom + 1, val * normal[1])?;    
+                                        }
+                                        if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
+                                            solver.add_vector_value(self.mesh.be[[i + l, j]] * self.mesh.freedom + 2, val * normal[2])?;    
+                                        }
+                                    }
+                                }
                             }
-                            if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
-                                solver.add_vector_value(self.mesh.be[[i, j]] * self.mesh.freedom + 1, val * normal[1])?;    
-                            }
-                            if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
-                                solver.add_vector_value(self.mesh.be[[i, j]] * self.mesh.freedom + 2, val * normal[2])?;    
-                            }
-                        }
-                    }
+                            Ok(())
+                        });
+                    }).unwrap();
                 }
             }
         }

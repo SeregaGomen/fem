@@ -117,13 +117,14 @@ fn test_3d8() {
     // fem.add_boundary_condition("0", "z == 0", Direct::X | Direct::Y | Direct::Z);
     fem.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
     
-    // fem.add_concentrated_load(String::from("1"), String::from("z == 1"), Direct::Z);
+    // fem.add_concentrated_load("1", "z == 1", Direct::Z);
     // fem.add_volume_load("1", "", Direct::Z);
     // fem.add_surface_load("1", "z == 1", Direct::Z);
     
     // fem.add_pressure_load("1", "z == 1");
 
     // fem.add_surface_load_fun(|_x, _y, _z| { -0.5 }, |_x, _y, z| { if z == 1. { true } else { false } }, Direct::Z);
+    
     fem.add_volume_load_fun(|_x, _y, _z| { -0.5 }, |_x, _y, _z| { true }, Direct::Z);
     match fem.generate(file_name.1) {
         Err(err) => {
