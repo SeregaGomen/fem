@@ -13,11 +13,11 @@ mod error;
 // 8. Вывод на экран информации о погрешности при итерационном решении СЛАУ
 // 9. Запись результатов (x)
 
-//use error::Error;
+use std::env;
 use fem::Direct;
 
 #[allow(dead_code)]
-fn test_1d2() {
+fn test_1d2(nthreads: usize) {
     let mesh_name = "D:/Work/python/pyfem/mesh/body1d.trpa";
     // let mesh_name = "/home/serg/work/python/pyfem/mesh/body1d.trpa";
     let mut fem: fem::FEM = match fem::FEM::new(mesh_name) {
@@ -27,6 +27,7 @@ fn test_1d2() {
         }
         Ok(fem) => fem,
     };
+    fem.set_num_threads(nthreads);
     fem.set_young_modulus(203200.);
     // fem.set_poisons_ratio(0.33);
     fem.set_thickness(1.0);
@@ -43,7 +44,7 @@ fn test_1d2() {
 }
 
 #[allow(dead_code)]
-fn test_2d4() {
+fn test_2d4(nthreads: usize) {
     let file_name = ("D:/Work/python/pyfem/mesh/console4.trpa", "D:/Work/python/pyfem/mesh/console4.res");
     // let file_name = ("/home/serg/work/python/pyfem/mesh/console4.trpa", "/home/serg/work/python/pyfem/mesh/console4.res");
     // let file_name = ("/home/serg/work/Qt/QFEM/mesh/console/console4.trpa", "/home/serg/work/Qt/QFEM/mesh/console/console4.res");
@@ -54,10 +55,9 @@ fn test_2d4() {
         }
         Ok(fem) => fem,
     };
-    // fem.set_young_modulus(203200.0);
-    // fem.set_poisons_ratio(0.27);
-    fem.set_young_modulus(10.0);
-    fem.set_poisons_ratio(0.3);
+    fem.set_num_threads(nthreads);
+    fem.set_young_modulus(203200.0);
+    fem.set_poisons_ratio(0.27);
 
     
     fem.set_thickness(1.0);
@@ -74,7 +74,7 @@ fn test_2d4() {
 }
 
 #[allow(dead_code)]
-fn test_3d4() {
+fn test_3d4(nthreads: usize) {
     let file_name = ("/home/serg/work/Qt/QFEM/mesh/balka.trpa", "/home/serg/work/Qt/QFEM/mesh/balka.res");
     // let file_name = ("D:/Work/Qt/QFEM/mesh/balka.trpa", "D:/Work/Qt/QFEM/mesh/balka.res");
     // let mesh_name = "D:/Work/Qt/QFEM/mesh/balka.trpa";
@@ -85,6 +85,7 @@ fn test_3d4() {
         }
         Ok(fem) => fem,
     };
+    fem.set_num_threads(nthreads);
     fem.set_young_modulus(203200.);
     fem.set_poisons_ratio(0.27);
     fem.add_boundary_condition("0", "y == 0", Direct::X | Direct::Y | Direct::Z);
@@ -100,7 +101,7 @@ fn test_3d4() {
 }
 
 #[allow(dead_code)]
-fn test_3d8() {
+fn test_3d8(nthreads: usize) {
     let file_name = ("D:/work/python/pyfem/mesh/cube.trpa", "D:/work/python/pyfem/mesh/cube.res");
     // let file_name = ("/home/serg/work/python/pyfem/mesh/cube.trpa", "/home/serg/work/python/pyfem/mesh/cube.res");
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
@@ -110,7 +111,7 @@ fn test_3d8() {
         }
         Ok(fem) => fem,
     };
-    fem.set_num_threads(4);
+    fem.set_num_threads(nthreads);
     fem.set_young_modulus(203200.);
     fem.set_poisons_ratio(0.27);
     
@@ -136,7 +137,7 @@ fn test_3d8() {
 }
 
 #[allow(dead_code)]
-fn test_shell_3() {
+fn test_shell_3(nthreads: usize) {
     let file_name = ("D:/work/python/pyfem/mesh/shell-tube-3.trpa", "D:/work/python/pyfem/mesh/shell-tube-3.res");
     // let file_name = ("/home/serg/work/python/pyfem/mesh/shell-tube-3.trpa", "/home/serg/work/python/pyfem/mesh/shell-tube-3.res");
     // let file_name = ("/home/serg/work/python/pyfem/mesh/shell4_1_0.trpa", "/home/serg/work/python/pyfem/mesh/shell4_1_0.res");
@@ -148,7 +149,7 @@ fn test_shell_3() {
         }
         Ok(fem) => fem,
     };
-    fem.set_num_threads(4);
+    fem.set_num_threads(nthreads);
     fem.set_young_modulus(203200.);
     fem.set_poisons_ratio(0.27);
     fem.set_thickness(0.0369);
@@ -167,9 +168,22 @@ fn test_shell_3() {
 
 
 fn main() {
-    // test_1d2();
-    // test_2d4();
-    // test_3d4();
-    test_3d8();
-    // test_shell_3();
+    let args: Vec<String> = env::args().collect();
+    let mut nthreads: usize = 1;
+    
+    if args.len() > 1 {
+        nthreads = match args[1].parse() {
+            Ok(v) => v,
+            Err(e) => {
+                println!("{}", e);
+                return;
+            }
+        };
+    }
+
+    // test_1d2(nthreads);
+    // test_2d4(nthreads);
+    // test_3d4(nthreads);
+    // test_3d8(nthreads);
+    test_shell_3(nthreads);
 }
