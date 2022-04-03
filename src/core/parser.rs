@@ -1,4 +1,4 @@
-use crate::error::Error;
+use crate::error::{ErrorCode, Error, error};
 use std::ptr;
 
 #[derive(Copy, Clone, PartialEq)]
@@ -95,7 +95,7 @@ impl Node {
             Some(Token::Lt) => if self.children[0].value()? < self.children[1].value()? { Ok(1.0) } else { Ok(0.0) }
             Some(Token::Ge) => if self.children[0].value()? >= self.children[1].value()? { Ok(1.0) } else { Ok(0.0) }
             Some(Token::Gt) => if self.children[0].value()? > self.children[1].value()? { Ok(1.0) } else { Ok(0.0) }
-            _ => Err(Error::InternalError),
+            _ => Err(error(ErrorCode::InternalError)),
         }
     }
 }
@@ -147,10 +147,10 @@ impl<'a> Parser<'a> {
             self.result = self.get_exp()?;
             if self.token_type == Some(TokenType::Delimiter) {
                 if self.tok == Some(Token::Rb) {
-                    return Err(Error::BracketError)
+                    return Err(error(ErrorCode::BracketError))
                 }
                 else {
-                    return Err(Error::SyntaxError)
+                    return Err(error(ErrorCode::SyntaxError))
                 }
             }
         }
@@ -191,7 +191,7 @@ impl<'a> Parser<'a> {
                 self.index += 1;
             }
             if !self.find_delimiter() {
-                return Err(Error::SyntaxError);       
+                return Err(error(ErrorCode::SyntaxError));       
             }
             self.token_type = Some(TokenType::Delimiter);
             return Ok(self.token_type)
@@ -222,7 +222,7 @@ impl<'a> Parser<'a> {
                     }
                 }
                 else {
-                    return Err(Error::InvalidNumber)    
+                    return Err(error(ErrorCode::InvalidNumber));   
                 }
             }
             self.token_type = Some(TokenType::Numeric);
@@ -238,13 +238,13 @@ impl<'a> Parser<'a> {
             if !self.find_delimiter() {
                 if !self.find_variable() {
                     if !self.find_function() {
-                        return Err(Error::UndefError);
+                        return Err(error(ErrorCode::UndefError));
                     }
                 }
             }   
             return Ok(self.token_type);
         }
-        Err(Error::SyntaxError)
+        Err(error(ErrorCode::SyntaxError))
     }
     fn find_delimiter(&mut self) -> bool {
         self.tok = match &self.token[..] {
@@ -381,7 +381,7 @@ impl<'a> Parser<'a> {
             self.get_token()?;
             res = self.token_or()?;
             if self.tok != Some(Token::Rb) {
-                return Err(Error::SyntaxError);
+                return Err(error(ErrorCode::SyntaxError));
             }
             self.get_token()?;
         } else {
@@ -391,7 +391,7 @@ impl<'a> Parser<'a> {
     }
     fn token_prim(&mut self) -> Result<Node, Error> {
         let mut is_find = false;
-        let mut res = Err(Error::SyntaxError);
+        let mut res = Err(error(ErrorCode::SyntaxError));
         match self.token_type {
             Some(TokenType::Numeric) => {
                 res = Ok(Node::double(self.token.parse().unwrap()));
@@ -407,11 +407,11 @@ impl<'a> Parser<'a> {
                     }
                 }
                 if !is_find {
-                    res = Err(Error::UndefError);
+                    res = Err(error(ErrorCode::UndefError));
                 }
             }
             Some(TokenType::Function) => res = Ok(self.token_func()?),
-            _ => res = Err(Error::SyntaxError),
+            _ => res = Err(error(ErrorCode::SyntaxError)),
         }
         //self.get_token()?;
         res
@@ -421,13 +421,13 @@ impl<'a> Parser<'a> {
         let fun_tok = self.tok.unwrap();
         self.get_token()?;
         if self.token.len() == 0 || self.tok != Some(Token::Lb) {
-            return Err(Error::SyntaxError);
+            return Err(error(ErrorCode::SyntaxError));
         }
         self.get_token()?;
         res = self.token_add()?;
         res = Node::unary(fun_tok, res);
         if self.tok != Some(Token::Rb) {
-            return Err(Error::SyntaxError);     
+            return Err(error(ErrorCode::SyntaxError));     
         }
         self.get_token()?;
         Ok(res)

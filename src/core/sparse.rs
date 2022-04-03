@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 use ndarray::{Array1, prelude::*};
-use crate::error::Error;
+use crate::error::{ErrorCode, Error, error};
 use super::util;
 use super::msg::Messenger;
 
@@ -90,12 +90,12 @@ impl SparseMatrix for EnvSparseMatrix {
                 }
             }
         }
-        Err(Error::InvalidIndex)
+        Err(error(ErrorCode::InvalidIndex))
     }
     fn solve(&mut self, rhs: &Array1<f64>, _eps: f64) -> Result<Array1<f64>, Error> {
         // Факторизация матрицы A = L * L(t)
         if self.esfct() == false {
-            return Err(Error::SingularMatrix);
+            return Err(error(ErrorCode::SingularMatrix));
         }
         // Вычисление y: (Ly = b)
         let y = self.elslv(self.size, &self.diag, &self.env, &self.xenv, &rhs.to_vec());
@@ -116,7 +116,7 @@ impl MapSparseMatrix {
     }
     fn find(&self, index1: usize, index2: usize) -> Result<usize, Error> {
         if index1 >= self.nvtxs * self.blksze || index2 >= self.nvtxs * self.blksze  {
-            return Err(Error::InvalidIndex);
+            return Err(error(ErrorCode::InvalidIndex));
         } 
         let row: usize = index1 / self.blksze;
         for i in 0..self.map[row].len() {
@@ -124,7 +124,7 @@ impl MapSparseMatrix {
                 return Ok(i * self.blksze + index2 % self.blksze);
             }
         }
-        Err(Error::InvalidIndex)
+        Err(error(ErrorCode::InvalidIndex))
     }
     // fn dot(&self, rhs: &Array1<f64>) -> Array1<f64> {
     //     let mut x: Array1<f64> = Array1::zeros(self.size * self.freedom);
@@ -183,7 +183,7 @@ impl MapSparseMatrix {
             norm = norm1;
         }
         if !is_ok {
-            return Err(Error::SingularMatrix);
+            return Err(error(ErrorCode::SingularMatrix));
         }
         Ok(x)
     }

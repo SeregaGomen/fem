@@ -11,7 +11,7 @@ use crossbeam::thread;
 use bitflags::bitflags;
 use ndarray::{Array1, Array2, prelude::*};
 use std::time::Instant;
-use crate::error::Error;
+use crate::error::{ErrorCode, Error, error};
 use mesh::Mesh;
 // use solver::{Solver, LzhSolver, EnvSolver};
 use solver::{Solver, LzhSolver};
@@ -508,81 +508,81 @@ impl<'a> FEM<'a> {
         use std::io::{BufWriter, prelude::*};
                 
         let file: File = match File::create(file_name) {
-            Err(_) => return Err(Error::OpenFile),
+            Err(_) => return Err(error(ErrorCode::OpenFile)),
             Ok(file) => file,
         };
         let mut stream = BufWriter::new(file);
         // Запись сигнатуры
         if !write!(stream, "FEM Solver Results File\n").is_ok() {
-            return Err(Error::WriteFile);
+            return Err(error(ErrorCode::WriteFile));
         }
         // Вывод сетки
         if !write!(stream, "Mesh\n").is_ok() {
-            return Err(Error::WriteFile);
+            return Err(error(ErrorCode::WriteFile));
         }
         if !write!(stream, "{}\n", self.mesh.fe_type).is_ok() {
-            return Err(Error::WriteFile);
+            return Err(error(ErrorCode::WriteFile));
         }
         if !write!(stream, "{}\n", self.mesh.num_vertex).is_ok() {
-            return Err(Error::WriteFile);
+            return Err(error(ErrorCode::WriteFile));
         }
         for i in 0..self.mesh.x.shape()[0] {
             for j in 0..self.mesh.x.shape()[1] {
                 if !write!(stream, "{} ", self.mesh.x[[i, j]]).is_ok() {
-                    return Err(Error::WriteFile);
+                    return Err(error(ErrorCode::WriteFile));
                 }
             }
             if !write!(stream, "\n").is_ok() {
-                return Err(Error::WriteFile);
+                return Err(error(ErrorCode::WriteFile));
             }
         }
         if !write!(stream, "{}\n", self.mesh.num_fe).is_ok() {
-            return Err(Error::WriteFile);
+            return Err(error(ErrorCode::WriteFile));
         }
         for i in 0..self.mesh.fe.shape()[0] {
             for j in 0..self.mesh.fe.shape()[1] {
                 if !write!(stream, "{} ", self.mesh.fe[[i, j]]).is_ok() {
-                    return Err(Error::WriteFile);
+                    return Err(error(ErrorCode::WriteFile));
                 }
             }
             if !write!(stream, "\n").is_ok() {
-                return Err(Error::WriteFile);
+                return Err(error(ErrorCode::WriteFile));
             }
         }
         if !write!(stream, "{}\n", self.mesh.num_be).is_ok() {
-            return Err(Error::WriteFile);
+            return Err(error(ErrorCode::WriteFile));
         }
         for i in 0..self.mesh.be.shape()[0] {
             for j in 0..self.mesh.be.shape()[1] {
                 if !write!(stream, "{} ", self.mesh.be[[i, j]]).is_ok() {
-                    return Err(Error::WriteFile);
+                    return Err(error(ErrorCode::WriteFile));
                 }
             }
             if !write!(stream, "\n").is_ok() {
-                return Err(Error::WriteFile);
+                return Err(error(ErrorCode::WriteFile));
             }
         }
         // Запись результатов расчета
         if !write!(stream, "Results\n").is_ok() {
-            return Err(Error::WriteFile);
+            return Err(error(ErrorCode::WriteFile));
         }
         let now = Utc::now();
         if !write!(stream, "{:02}.{:02}.{:4} - {:02}:{:02}:{:02}\n",now.day(), now.month(), now.year(), now.hour(), now.minute(), now.second()).is_ok() {
-            return Err(Error::WriteFile);
+            return Err(error(ErrorCode::WriteFile));
         }
         if !write!(stream, "{}\n", self.num_results()).is_ok() {
-            return Err(Error::WriteFile);
+            return Err(error(ErrorCode::WriteFile));
         }
         for i in 0..res.shape()[0] {
             if !write!(stream, "{}\n", self.fun_names()[i]).is_ok() {
-                return Err(Error::WriteFile);
+                return Err(error(ErrorCode::WriteFile));
             }
             if !write!(stream, "0\n{}\n", res.shape()[1]).is_ok() {
-                return Err(Error::WriteFile);
+                return Err(error(ErrorCode::WriteFile));
             }
             for j in 0..res.shape()[1] {
                 if !write!(stream, "{}\n", res[[i, j]]).is_ok() {
-                    return Err(Error::WriteFile);
+                    return Err(error(ErrorCode::WriteFile));
                 }
             }
         }

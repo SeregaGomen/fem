@@ -2,7 +2,7 @@
 use std::io::prelude::*;
 use std::str;
 use ndarray::prelude::*;
-use crate::error::Error;
+use crate::error::{ErrorCode, Error, error};
 
 
 #[allow(dead_code)]
@@ -34,7 +34,7 @@ pub fn solve(a: &mut Array2<f64>, b: &mut Array1<f64>, eps: f64) -> Result<Array
         }
     }
     if a[[n - 1, n - 1]].abs() < eps {
-        return Err(Error::SingularMatrix);   
+        return Err(Error::new(ErrorCode::SingularMatrix));   
     }
     let mut x: Array1<f64> = Array1::zeros(n);
     x[n - 1] = b[n - 1] / a[[n - 1, n - 1]];
@@ -63,7 +63,7 @@ pub fn inv(m: &Array2<f64>) -> Result<Array2<f64>, Error> {
                     [m[[1, 0]] * m[[2, 1]] - m[[1, 1]] * m[[2, 0]], m[[0, 1]] * m[[2, 0]] - m[[0, 0]] * m[[2, 1]], m[[0, 0]] * m[[1, 1]] - m[[0, 1]] * m[[1, 0]]]] / det(m)?;
     }
     else {
-        return Err(Error::InverseMatrix);
+        return Err(error(ErrorCode::InverseMatrix));
     }
     Ok(ret)
 }
@@ -82,7 +82,7 @@ pub fn det(m: &Array2<f64>) -> Result<f64, Error> {
                 m[[0, 2]] * m[[1, 1]] * m[[2, 0]] - m[[0, 0]] * m[[1, 2]] * m[[2, 1]] - m[[0, 1]] * m[[1, 0]] * m[[2, 2]];
     }
     else {
-        return Err(Error::DeterminantMatrix);
+        return Err(error(ErrorCode::DeterminantMatrix));
     }
     Ok(ret)
 }
@@ -181,7 +181,7 @@ pub fn get_line<R: BufRead>(reader: &mut R) -> Result<String, Error> {
     let mut bytes: Vec<u8> = Vec::new();
     loop {
         let len = match reader.read_until(b'\n', &mut bytes) {
-            Err(_) => return Err(Error::ReadFile),
+            Err(_) => return Err(error(ErrorCode::ReadFile)),
             Ok(len) => len,
         };
         if len == 0 {
@@ -189,7 +189,7 @@ pub fn get_line<R: BufRead>(reader: &mut R) -> Result<String, Error> {
         }
         res = match str::from_utf8(&bytes) {
             Ok(res) => res,
-            Err(_) => return Err(Error::InvalidNumber),
+            Err(_) => return Err(error(ErrorCode::InvalidNumber)),
         };
         if res.trim().len() > 0 {
             break;

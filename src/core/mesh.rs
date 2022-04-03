@@ -4,7 +4,7 @@ use std::fs::OpenOptions;
 use std::io::{BufReader, BufWriter, prelude::*};
 use ndarray::prelude::*;
 use super::fe::FEType;
-use crate::error::Error;
+use crate::error::{ErrorCode, Error, error};
 use super::msg::Messenger;
 use super::util;
 
@@ -36,7 +36,7 @@ impl Mesh {
                 .append(true)
                 .create_new(false)
                 .open(file_name) {
-            Err(_) => return Err(Error::OpenFile),
+            Err(_) => return Err(error(ErrorCode::OpenFile)),
             Ok(file) => file,
         };
         let mut reader = BufReader::new(&file);
@@ -92,12 +92,12 @@ impl Mesh {
                 be_size = 0;
                 freedom = 6;
             }
-            _ => return Err(Error::InvalidFEType),
+            _ => return Err(error(ErrorCode::InvalidFEType)),
         }
         // Считывание количества узлов
         val = util::get_line(&mut reader)?;
         num_vertex = match val.trim().parse() {
-            Err(_) => return Err(Error::InvalidNumber),
+            Err(_) => return Err(error(ErrorCode::InvalidNumber)),
             Ok(num_vertex) => num_vertex,
         };
         let mut x: Array2<f64> = Array2::zeros((num_vertex, dim));
@@ -107,7 +107,7 @@ impl Mesh {
             let ls = val.trim().split_whitespace();
             for (j, it) in ls.enumerate() {
                 let val: f64 = match it.parse() {
-                    Err(_) => return Err(Error::InvalidNumber), 
+                    Err(_) => return Err(error(ErrorCode::InvalidNumber)), 
                     Ok(val) => val,
                 };
                 x[[i, j]] = val;
@@ -116,7 +116,7 @@ impl Mesh {
         // Считывание количества КЭ
         val = util::get_line(&mut reader)?;
         num_fe = match val.trim().parse() {
-            Err(_) => return Err(Error::InvalidNumber),
+            Err(_) => return Err(error(ErrorCode::InvalidNumber)),
             Ok(num_fe) => num_fe,
         };
         let mut fe: Array2<usize> = Array2::zeros((num_fe, fe_size));
@@ -126,7 +126,7 @@ impl Mesh {
             let ls = val.trim().split_whitespace();
             for (j, it) in ls.enumerate() {
                 let val: usize = match it.parse() {
-                    Err(_) => return Err(Error::InvalidNumber), 
+                    Err(_) => return Err(error(ErrorCode::InvalidNumber)), 
                     Ok(val) => val,
                 };
                 fe[[i, j]] = val;
@@ -135,7 +135,7 @@ impl Mesh {
         // Считывание количества ГЭ
         val = util::get_line(&mut reader)?;
         num_be = match val.trim().parse() {
-            Err(_) => return Err(Error::InvalidNumber),
+            Err(_) => return Err(error(ErrorCode::InvalidNumber)),
             Ok(num_be) => num_be,
         };
         let mut be: Array2<usize> = Array2::zeros((num_be, be_size));
@@ -145,7 +145,7 @@ impl Mesh {
             let ls = val.trim().split_whitespace();
             for (j, it) in ls.enumerate() {
                 let val: usize = match it.parse() {
-                    Err(_) => return Err(Error::InvalidNumber), 
+                    Err(_) => return Err(error(ErrorCode::InvalidNumber)), 
                     Ok(val) => val,
                 };
                 be[[i, j]] = val;
@@ -168,15 +168,15 @@ impl Mesh {
             for row in &mesh_map {
                 for elem in row {
                     if !writer.write(format!("{} ", elem).as_bytes()).is_ok() {
-                        return Err(Error::WriteFile);
+                        return Err(error(ErrorCode::WriteFile));
                     }
                 }
                 if !writer.write(format!("\n").as_bytes()).is_ok() {
-                    return Err(Error::WriteFile);
+                    return Err(error(ErrorCode::WriteFile));
                 }
             }
             if writer.flush().is_err() {
-                return Err(Error::WriteFile);
+                return Err(error(ErrorCode::WriteFile));
             }
         }
         else {
@@ -188,7 +188,7 @@ impl Mesh {
                 let ls = val.trim().split_whitespace();
                 for (_, it) in ls.enumerate() {
                     let val: usize = match it.parse() {
-                        Err(_) => return Err(Error::InvalidNumber), 
+                        Err(_) => return Err(error(ErrorCode::InvalidNumber)), 
                         Ok(val) => val,
                     };
                     mesh_map[i].push(val);

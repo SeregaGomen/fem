@@ -1,5 +1,5 @@
 use ndarray::{Array1};
-use crate::error::Error;
+use crate::error::{ErrorCode, Error, error};
 use super::sparse::{SparseMatrix, MapSparseMatrix, EnvSparseMatrix};
 use super::mesh::Mesh;
 
@@ -77,14 +77,14 @@ impl Solver for LzhSolver {
     }
     fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error> {
         if index >= self.size {
-            return Err(Error::InvalidIndex);
+            return Err(error(ErrorCode::InvalidIndex));
         }
         self.b[index] = val;
         Ok(())
     }
     fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error> {
         if index >= self.size {
-            return Err(Error::InvalidIndex);
+            return Err(error(ErrorCode::InvalidIndex));
         }
         self.b[index] += val;
         Ok(())
@@ -109,14 +109,14 @@ impl Solver for EnvSolver {
     }
     fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error> {
         if index >= self.size {
-            return Err(Error::InvalidIndex);
+            return Err(error(ErrorCode::InvalidIndex));
         }
         self.b[index] = val;
         Ok(())
     }
     fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), Error> {
         if index >= self.size {
-            return Err(Error::InvalidIndex);
+            return Err(error(ErrorCode::InvalidIndex));
         }
         self.b[index] += val;
         Ok(())
