@@ -191,6 +191,29 @@ fn main() {
 
 fn read_json(file_name: &str) -> Result<(), Error> {
 
+    // let data = r#"
+    // {
+    //     "Mesh": "/home/serg/work/python/pyfem/mesh/cube.trpa",
+    //     "Result": "/home/serg/work/python/pyfem/mesh/cube.res",
+    //     "YoungModulus": 203200,
+    //     "PoissonRatio": 0.27,
+    //     "Threads": 4,
+    //     "BoundaryConditions": [
+    //         {
+    //             "Value": "0", 
+    //             "Predicate": "z == 0", 
+    //             "Direct": "XYZ"
+    //         }
+    //     ],
+    //     "VolumeLoad": [
+    //         {
+    //             "Value": "-0.5", 
+    //             "Predicate": "", 
+    //             "Direct": "Z"
+    //         }
+    //     ]
+    // }"#;
+
     let data = match fs::read_to_string(file_name) {
         Ok(v) => v,
         Err(_) => return Err(error(ErrorCode::ReadFile)),
