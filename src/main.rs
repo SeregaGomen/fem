@@ -1,7 +1,10 @@
-#[path = "core/fem.rs"]
+#[path = "fem/fem.rs"]
 mod fem;
-#[path = "core/error.rs"]
+#[path = "fem/error.rs"]
 mod error;
+#[path = "fem/json.rs"]
+mod json;
+
 
 // 1. Изменить процедуру учета граничных условий (обрабатывать только ненулевые элементы)
 // 2. Выборка индексов КЭ (переделать) (x)
@@ -14,10 +17,7 @@ mod error;
 // 9. Запись результатов (x)
 
 use std::env;
-use json;
-use std::fs;
 use fem::Direct;
-use error::{ErrorCode, Error, error};
 
 #[allow(dead_code)]
 fn test_1d2() {
@@ -142,8 +142,8 @@ fn test_3d8() {
 
 #[allow(dead_code)]
 fn test_shell_3() {
-    let file_name = ("D:/work/python/pyfem/mesh/shell-tube-3.trpa", "D:/work/python/pyfem/mesh/shell-tube-3.res");
-    // let file_name = ("/home/serg/work/python/pyfem/mesh/shell-tube-3.trpa", "/home/serg/work/python/pyfem/mesh/shell-tube-3.res");
+    // let file_name = ("D:/work/python/pyfem/mesh/shell-tube-3.trpa", "D:/work/python/pyfem/mesh/shell-tube-3.res");
+    let file_name = ("/home/serg/work/python/pyfem/mesh/shell-tube-3.trpa", "/home/serg/work/python/pyfem/mesh/shell-tube-3.res");
     // let file_name = ("/home/serg/work/python/pyfem/mesh/shell4_1_0.trpa", "/home/serg/work/python/pyfem/mesh/shell4_1_0.res");
     // let file_name = ("D:/work/python/pyfem/mesh/shell4_1_0.trpa", "D:/work/python/pyfem/mesh/shell4_1_0.res");
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
@@ -158,8 +158,11 @@ fn test_shell_3() {
     fem.set_poisons_ratio(0.27);
     fem.set_thickness(0.0369);
     
-    fem.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. || z == 4.014 { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
-    fem.add_pressure_load_fun(|_x, _y, _z| { 0.05 }, |_x, _y, _z| { true });
+    // fem.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. || z == 4.014 { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
+    // fem.add_pressure_load_fun(|_x, _y, _z| { 0.05 }, |_x, _y, _z| { true });
+    fem.set_eps(0.01);
+    fem.add_boundary_condition("0", "z == 0. || z == 4.014", Direct::X | Direct::Y | Direct::Z);
+    fem.add_pressure_load("0.05", "");
 
     match fem.generate(file_name.1) {
         Err(err) => {
@@ -183,168 +186,9 @@ fn main() {
     // test_3d4();
     // test_3d8();
     // test_shell_3();
-    match read_json(args[1].as_str()) {
-        Ok(_) => println!("Done"),
-        Err(e) => println!("Error: {}", e),
+    match json::read_json(args[1].as_str()) {
+         Ok(_) => println!("Done"),
+         Err(e) => println!("Error: {}", e),
     };
 }
 
-fn read_json(file_name: &str) -> Result<(), Error> {
-
-    // let data = r#"
-    // {
-    //     "Mesh": "/home/serg/work/python/pyfem/mesh/cube.trpa",
-    //     "Result": "/home/serg/work/python/pyfem/mesh/cube.res",
-    //     "YoungModulus": 203200,
-    //     "PoissonRatio": 0.27,
-    //     "Threads": 4,
-    //     "BoundaryConditions": [
-    //         {
-    //             "Value": "0", 
-    //             "Predicate": "z == 0", 
-    //             "Direct": "XYZ"
-    //         }
-    //     ],
-    //     "VolumeLoad": [
-    //         {
-    //             "Value": "-0.5", 
-    //             "Predicate": "", 
-    //             "Direct": "Z"
-    //         }
-    //     ]
-    // }"#;
-
-    let data = match fs::read_to_string(file_name) {
-        Ok(v) => v,
-        Err(_) => return Err(error(ErrorCode::ReadFile)),
-    };
-
-    let v = match json::parse(data.as_str()) {
-        Ok(v) => v,
-        Err(e) => {
-            println!("{}", e);
-            return Err(error(ErrorCode::JsonError));
-        }
-    };
-
-    let mesh_name = match v["Mesh"].as_str() {
-        Some(v) => v,
-        None => return Err(error(ErrorCode::MeshError)),
-    };
-    let mut fem: fem::FEM = fem::FEM::new(mesh_name)?;
-
-    let nthreads = match v["Threads"].as_u32() {
-        Some(v) => v,
-        None => 1,
-    };
-    fem.set_num_threads(nthreads as usize);
-
-    let thickness = match v["Thickness"].as_f64() {
-        Some(v) => v,
-        None => 1.0,
-    };
-    fem.set_thickness(thickness);
-
-    let ym = match v["YoungModulus"].as_f64() {
-        Some(v) => v,
-        None => return Err(error(ErrorCode::YoungModulusError)),
-    };
-    fem.set_young_modulus(ym);
-
-    let pr = match v["PoissonRatio"].as_f64() {
-        Some(v) => v,
-        None => return Err(error(ErrorCode::PoissonRatioError)),
-    };
-    fem.set_poisons_ratio(pr);
-
-    for i in 0..v["BoundaryConditions"].len() {
-        let direct = get_json_direct("BoundaryConditions", &v, i)?;
-        let value: &str = match v["BoundaryConditions"][i]["Value"].as_str() {
-            Some(v) => v,
-            None => return Err(error(ErrorCode::ValueError)),
-        };
-        let predicate: &str = match v["BoundaryConditions"][i]["Predicate"].as_str() {
-            Some(v) => v,
-            None => return Err(error(ErrorCode::PredicateError)),
-        };
-        fem.add_boundary_condition(value, predicate, direct);
-    }
-
-    for i in 0..v["VolumeLoad"].len() {
-        let direct = get_json_direct("VolumeLoad", &v, i)?;
-        let value: &str = match v["VolumeLoad"][i]["Value"].as_str() {
-            Some(v) => v,
-            None => return Err(error(ErrorCode::ValueError)),
-        };
-        let predicate: &str = match v["VolumeLoad"][i]["Predicate"].as_str() {
-            Some(v) => v,
-            None => return Err(error(ErrorCode::PredicateError)),
-        };
-        fem.add_volume_load(value, predicate, direct);
-    }
-
-    for i in 0..v["ConcentratedLoad"].len() {
-        let direct = get_json_direct("ConcentratedLoad", &v, i)?;
-        let value: &str = match v["ConcentratedLoad"][i]["Value"].as_str() {
-            Some(v) => v,
-            None => return Err(error(ErrorCode::ValueError)),
-        };
-        let predicate: &str = match v["ConcentratedLoad"][i]["Predicate"].as_str() {
-            Some(v) => v,
-            None => return Err(error(ErrorCode::PredicateError)),
-        };
-        fem.add_concentrated_load(value, predicate, direct);
-    }
-
-    for i in 0..v["SurfaceLoad"].len() {
-        let direct = get_json_direct("SurfaceLoad", &v, i)?;
-        let value: &str = match v["SurfaceLoad"][i]["Value"].as_str() {
-            Some(v) => v,
-            None => return Err(error(ErrorCode::ValueError)),
-        };
-        let predicate: &str = match v["SurfaceLoad"][i]["Predicate"].as_str() {
-            Some(v) => v,
-            None => return Err(error(ErrorCode::PredicateError)),
-        };
-        fem.add_surface_load(value, predicate, direct);
-    }
-
-    for i in 0..v["PressureLoad"].len() {
-        let value: &str = match v["PressureLoad"][i]["Value"].as_str() {
-            Some(v) => v,
-            None => return Err(error(ErrorCode::ValueError)),
-        };
-        let predicate: &str = match v["PressureLoad"][i]["Predicate"].as_str() {
-            Some(v) => v,
-            None => return Err(error(ErrorCode::PredicateError)),
-        };
-        fem.add_pressure_load(value, predicate);
-    }
-
-    let res_name = match v["Result"].as_str() {
-        Some(v) => v,
-        None => return Err(error(ErrorCode::ResultError)),
-    };
-    fem.generate(res_name)
-}
-
-fn get_json_direct<'a>(name: &'a str, v: &json::JsonValue, i: usize) -> Result<Direct, Error> {
-    let mut direct: Option<Direct> = None;
-    let direct_str = match v[name][i]["Direct"].as_str() {
-        Some(v) => v,
-        None => return Err(error(ErrorCode::DirectError)),    
-    };
-    if direct_str.contains("X") {
-        direct = Some(Direct::X);
-    }
-    if direct_str.contains("Y") {
-        direct = if direct.is_some() { Some(Direct::Y | direct.unwrap()) } else { Some(Direct::Y) };
-    }
-    if direct_str.contains("Z") {
-        direct = if direct.is_some() { Some(Direct::Z | direct.unwrap()) } else { Some(Direct::Z) };
-    }
-    match direct {
-        Some(v) => Ok(v),
-        None => Err(error(ErrorCode::IncorrectDirectError)),
-    }
-}
