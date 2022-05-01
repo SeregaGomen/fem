@@ -166,7 +166,7 @@ impl<'a> FEM<'a> {
     }
     pub fn generate(&mut self, res_name: &str) -> Result<(), Error> {
         let time = Instant::now();
-        let mut solver = Arc::new(Mutex::new(LzhSolver::new(&self.mesh)));
+        let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
         // let mut solver = LzhSolver::new(&self.mesh);
         // let mut solver = EnvSolver::new(&self.mesh);
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
@@ -175,12 +175,11 @@ impl<'a> FEM<'a> {
         self.set_volume_load(&mut solver)?;
         self.set_surface_load(&mut solver)?;
         self.set_boundary_condition(&mut solver)?;
-        let res = &self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?)?;
-        self.print_summary(&res);
+        self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?, res_name)?;
         println!("Lead time: {:.2?}", time.elapsed());
-        self.save_results(&res, res_name)
+        Ok(())
     }
-    fn set_global_matrix(&self, solver: &mut Arc<Mutex<impl Solver>>) -> Result<(), Error> {
+    fn set_global_matrix(&self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
         let msg = Arc::new(Mutex::new(Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5)));
         (0..self.mesh.num_fe).into_par_iter().for_each(|i| {
             msg.lock().unwrap().add_progress();
@@ -223,11 +222,11 @@ impl<'a> FEM<'a> {
             println!("{}:\t{}\t{}", names[i], util::fmt_f64(util::get_min(res.row(i)), 12, 5, 2), util::fmt_f64(util::get_max(res.row(i)), 12, 5, 2));
         }
     }
-    fn calc_results(&self, u: &Array1<f64>) -> Result<Array2<f64>, Error> {
+    fn calc_results(&self, u: &Array1<f64>, res_name: &str) -> Result<(), Error> {
         let fe_size = self.mesh.fe.shape()[1];
         let freedom = self.mesh.freedom;
         let res = Arc::new(Mutex::new(Array2::zeros((self.num_results(), self.mesh.num_vertex))));
-        let counter = Arc::new(Mutex::new(Array1::<i32>::zeros(self.mesh.num_vertex)));
+        let counter = Mutex::new(Array1::<i32>::zeros(self.mesh.num_vertex));
         // Копирование результатов расчета (перемещений)
         for i in 0..freedom {
             for j in 0..self.mesh.num_vertex {
@@ -255,22 +254,19 @@ impl<'a> FEM<'a> {
                 }
             }
         });
+        let mut res = res.lock().unwrap();
+        let counter = counter.lock().unwrap();
         // Осредняем результаты
         for i in freedom..self.num_results() {
             for j in 0..self.mesh.num_vertex {
-                res.lock().unwrap()[[i, j]] /= counter.lock().unwrap()[j] as f64;
+                res[[i, j]] /= counter[j] as f64;
             }
         }
-        let mut result = Array2::zeros((self.num_results(), self.mesh.num_vertex));
-        for i in 0..result.shape()[0] {
-            for j in 0..result.shape()[1] {
-                result[[i, j]] = res.lock().unwrap()[[i, j]]; 
-            }
-        }
-        Ok(result)
+        self.print_summary(&res);
+        self.save_results(&res, res_name)
     }
-    fn set_boundary_condition(&mut self, solver: &mut Arc<Mutex<impl Solver>>) -> Result<(), Error> {
-        let msg = Arc::new(Mutex::new(Messenger::new("Using of boundary conditions", 1, self.mesh.num_vertex as i64, 5)));
+    fn set_boundary_condition(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
+        let msg = Mutex::new(Messenger::new("Using of boundary conditions", 1, self.mesh.num_vertex as i64, 5));
         (0..self.mesh.num_vertex).into_par_iter().for_each(|i| {
             msg.lock().unwrap().add_progress();
             for it in &self.param.param {
@@ -297,9 +293,9 @@ impl<'a> FEM<'a> {
         msg.lock().unwrap().stop();
         Ok(())
     }
-    fn set_concentrated_load(&mut self, solver: &mut Arc<Mutex<impl Solver>>) -> Result<(), Error> {
+    fn set_concentrated_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::ConcentratedLoad) {
-            let msg = Arc::new(Mutex::new(Messenger::new("Calculation of concentrated loads", 1, self.mesh.num_vertex as i64, 5)));
+            let msg = Mutex::new(Messenger::new("Calculation of concentrated loads", 1, self.mesh.num_vertex as i64, 5));
             (0..self.mesh.num_vertex).into_par_iter().for_each(|i| {
                 msg.lock().unwrap().add_progress();
                 for it in &self.param.param {
@@ -324,9 +320,9 @@ impl<'a> FEM<'a> {
         }
         Ok(())
     }
-    fn set_volume_load(&mut self, solver: &mut Arc<Mutex<impl Solver>>) -> Result<(), Error> {
+    fn set_volume_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::VolumeLoad) {
-            let msg = Arc::new(Mutex::new(Messenger::new("Calculation of volume loads", 1, self.mesh.num_fe as i64, 5)));
+            let msg = Mutex::new(Messenger::new("Calculation of volume loads", 1, self.mesh.num_fe as i64, 5));
             (0..self.mesh.num_fe).into_par_iter().for_each(|i| {
                 msg.lock().unwrap().add_progress();
                 for it in &self.param.param {
@@ -354,9 +350,9 @@ impl<'a> FEM<'a> {
         }
         Ok(())
     }
-    fn set_surface_load(&mut self, solver: &mut Arc<Mutex<impl Solver>>) -> Result<(), Error> {
+    fn set_surface_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::PressureLoad) || self.param.find_parameter(ParamType::SurfaceLoad) {
-            let msg = Arc::new(Mutex::new(Messenger::new("Calculation of surface loads", 1, self.mesh.num_be as i64, 5)));
+            let msg = Mutex::new(Messenger::new("Calculation of surface loads", 1, self.mesh.num_be as i64, 5));
             (0..self.mesh.num_be).into_par_iter().for_each(|i| {
                 msg.lock().unwrap().add_progress();
                 for it in &self.param.param {
