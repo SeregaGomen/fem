@@ -164,6 +164,12 @@ impl<'a> FEM<'a> {
     pub fn add_pressure_load_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool) {
         self.param.param.push(Parameter::new_fun(ParamType::PressureLoad, value_fun, predicate_fun, Direct::X | Direct::Y | Direct::Z));
     }
+    pub fn is_2d(&self) -> bool {
+        self.mesh.is_2d()
+    }
+    pub fn is_3d(&self) -> bool {
+        self.mesh.is_3d()
+    }
     pub fn generate(&mut self, res_name: &str) -> Result<(), Error> {
         let time = Instant::now();
         let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
@@ -181,20 +187,21 @@ impl<'a> FEM<'a> {
     }
     fn set_global_matrix(&self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
         let msg = Arc::new(Mutex::new(Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5)));
-        (0..self.mesh.num_fe).into_par_iter().for_each(|i| {
+        (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), Error> {
             msg.lock().unwrap().add_progress();
-            let fe = self.calc_fe_matrix(i).unwrap();
+            let fe = self.calc_fe_matrix(i)?;
             for j in 0..fe.shape()[0] {
                 for k in j..fe.shape()[1] {
                     let index1 = self.mesh.fe[[i, j / self.mesh.freedom]] * self.mesh.freedom + j % self.mesh.freedom;
                     let index2 = self.mesh.fe[[i, k / self.mesh.freedom]] * self.mesh.freedom + k % self.mesh.freedom;
-                    solver.lock().unwrap().add_matrix_value(index1, index2, fe[[j, k]]).unwrap();
+                    solver.lock().unwrap().add_matrix_value(index1, index2, fe[[j, k]])?;
                     if j != k {
-                        solver.lock().unwrap().add_matrix_value(index2, index1, fe[[j, k]]).unwrap();
+                        solver.lock().unwrap().add_matrix_value(index2, index1, fe[[j, k]])?;
                     }
                 }
             }
-        });
+            Ok(())
+        })?;
         msg.lock().unwrap().stop();
         Ok(())
     }
@@ -225,7 +232,7 @@ impl<'a> FEM<'a> {
     fn calc_results(&self, u: &Array1<f64>, res_name: &str) -> Result<(), Error> {
         let fe_size = self.mesh.fe.shape()[1];
         let freedom = self.mesh.freedom;
-        let res = Arc::new(Mutex::new(Array2::zeros((self.num_results(), self.mesh.num_vertex))));
+        let res = Mutex::new(Array2::zeros((self.num_results(), self.mesh.num_vertex)));
         let counter = Mutex::new(Array1::<i32>::zeros(self.mesh.num_vertex));
         // Копирование результатов расчета (перемещений)
         for i in 0..freedom {
@@ -235,7 +242,7 @@ impl<'a> FEM<'a> {
         }
         // Вычисление деформаций, напряжений, ...
         let msg = Arc::new(Mutex::new(Messenger::new("Calculation of standard finite element results", 1, self.mesh.num_fe as i64, 5)));
-        (0..self.mesh.num_fe).into_par_iter().for_each(|i| {
+        (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), Error> {
             msg.lock().unwrap().add_progress();
             // Формируем вектор перемещений для текущего КЭ
             let mut fe_u = Array1::zeros(fe_size * freedom);
@@ -244,7 +251,7 @@ impl<'a> FEM<'a> {
                     fe_u[j * freedom + k] = u[freedom * self.mesh.fe[[i, j]] + k];
                 }
             }
-            let fe_res = self.calc_fe_results(i, fe_u).unwrap(); 
+            let fe_res = self.calc_fe_results(i, fe_u)?; 
             for j in 0..self.num_results() - freedom {
                 for k in 0..fe_size {
                     res.lock().unwrap()[[j + freedom, self.mesh.fe[[i, k]]]] += fe_res[[j, k]];
@@ -253,7 +260,8 @@ impl<'a> FEM<'a> {
                     }
                 }
             }
-        });
+            Ok(())
+        })?;
         let mut res = res.lock().unwrap();
         let counter = counter.lock().unwrap();
         // Осредняем результаты
@@ -267,117 +275,120 @@ impl<'a> FEM<'a> {
     }
     fn set_boundary_condition(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
         let msg = Mutex::new(Messenger::new("Using of boundary conditions", 1, self.mesh.num_vertex as i64, 5));
-        (0..self.mesh.num_vertex).into_par_iter().for_each(|i| {
+        (0..self.mesh.num_vertex).into_par_iter().try_for_each(|i| -> Result<(), Error> {
             msg.lock().unwrap().add_progress();
             for it in &self.param.param {
                 if it.p_type == ParamType::BoundaryCondition {
                     let x = self.mesh.x.row(i);
-                    if it.get_predicate(&x).unwrap() == false {
+                    if it.get_predicate(&x)? == false {
                         continue;
                     }
-                    let val = it.get_value(&x).unwrap();
+                    let val = it.get_value(&x)?;
                     if it.direct.contains(Direct::X) {
                         // solver.lock().unwrap().set_result_value((i + l) * self.mesh.freedom + 0, val)?;    
-                        solver.lock().unwrap().set_result_value((i) * self.mesh.freedom + 0, val).unwrap();    
+                        solver.lock().unwrap().set_result_value((i) * self.mesh.freedom + 0, val)?;    
                     }
                     if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
-                        solver.lock().unwrap().set_result_value((i) * self.mesh.freedom + 1, val).unwrap();    
+                        solver.lock().unwrap().set_result_value((i) * self.mesh.freedom + 1, val)?;    
                     }
                     if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
-                        solver.lock().unwrap().set_result_value((i) * self.mesh.freedom + 2, val).unwrap();    
+                        solver.lock().unwrap().set_result_value((i) * self.mesh.freedom + 2, val)?;    
                     }
                 }
             }
-                
-        });
+            Ok(())    
+        })?;
         msg.lock().unwrap().stop();
         Ok(())
     }
     fn set_concentrated_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::ConcentratedLoad) {
             let msg = Mutex::new(Messenger::new("Calculation of concentrated loads", 1, self.mesh.num_vertex as i64, 5));
-            (0..self.mesh.num_vertex).into_par_iter().for_each(|i| {
+            (0..self.mesh.num_vertex).into_par_iter().try_for_each(|i| -> Result<(), Error> {
                 msg.lock().unwrap().add_progress();
                 for it in &self.param.param {
                     if it.p_type == ParamType::ConcentratedLoad {
                         let x = self.mesh.x.row(i);
-                        if it.get_predicate(&x).unwrap() == false {
+                        if it.get_predicate(&x)? == false {
                             continue;
                         }
-                        let val = it.get_value(&x).unwrap();
+                        let val = it.get_value(&x)?;
                         if it.direct.contains(Direct::X) {
-                            solver.lock().unwrap().set_vector_value((i) * self.mesh.freedom + 0, val).unwrap();    
+                            solver.lock().unwrap().set_vector_value((i) * self.mesh.freedom + 0, val)?;    
                         }
                         if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
-                            solver.lock().unwrap().set_vector_value((i) * self.mesh.freedom + 1, val).unwrap();    
+                            solver.lock().unwrap().set_vector_value((i) * self.mesh.freedom + 1, val)?;    
                         }
                         if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
-                            solver.lock().unwrap().set_vector_value((i) * self.mesh.freedom + 2, val).unwrap();    
+                            solver.lock().unwrap().set_vector_value((i) * self.mesh.freedom + 2, val)?;    
                         }
                     }
                 }
-            });
+                Ok(())
+            })?;
         }
         Ok(())
     }
     fn set_volume_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::VolumeLoad) {
             let msg = Mutex::new(Messenger::new("Calculation of volume loads", 1, self.mesh.num_fe as i64, 5));
-            (0..self.mesh.num_fe).into_par_iter().for_each(|i| {
+            (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), Error> {
                 msg.lock().unwrap().add_progress();
                 for it in &self.param.param {
                     if it.p_type == ParamType::VolumeLoad {
                         let x = self.mesh.get_fe_coord(i);
-                        if !self.check_elem(&x, &it).unwrap() {
+                        if !self.check_elem(&x, &it)? {
                             continue;
                         }
                         let share = self.volume_load_share() * self.mesh.fe_volume(i); 
                         for j in 0..self.mesh.fe.shape()[1] {
-                            let val = it.get_value(&x.row(j)).unwrap() * share[j];
+                            let val = it.get_value(&x.row(j))? * share[j];
                             if it.direct.contains(Direct::X) {
-                                solver.lock().unwrap().add_vector_value(self.mesh.fe[[i, j]] * self.mesh.freedom + 0, val).unwrap();    
+                                solver.lock().unwrap().add_vector_value(self.mesh.fe[[i, j]] * self.mesh.freedom + 0, val)?;    
                             }
                             if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
-                                solver.lock().unwrap().add_vector_value(self.mesh.fe[[i, j]] * self.mesh.freedom + 1, val).unwrap();    
+                                solver.lock().unwrap().add_vector_value(self.mesh.fe[[i, j]] * self.mesh.freedom + 1, val)?;    
                             }
                             if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
-                                solver.lock().unwrap().add_vector_value(self.mesh.fe[[i, j]] * self.mesh.freedom + 2, val).unwrap();    
+                                solver.lock().unwrap().add_vector_value(self.mesh.fe[[i, j]] * self.mesh.freedom + 2, val)?;    
                             }
                         }
                     }
                 }
-            });
+                Ok(())
+            })?;
         }
         Ok(())
     }
     fn set_surface_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
         if self.param.find_parameter(ParamType::PressureLoad) || self.param.find_parameter(ParamType::SurfaceLoad) {
             let msg = Mutex::new(Messenger::new("Calculation of surface loads", 1, self.mesh.num_be as i64, 5));
-            (0..self.mesh.num_be).into_par_iter().for_each(|i| {
+            (0..self.mesh.num_be).into_par_iter().try_for_each(|i| -> Result<(), Error> {
                 msg.lock().unwrap().add_progress();
                 for it in &self.param.param {
                     if it.p_type == ParamType::PressureLoad || it.p_type == ParamType::SurfaceLoad {
                         let x = self.mesh.get_be_coord(i);
-                        if !self.check_elem(&x, &it).unwrap() {
+                        if !self.check_elem(&x, &it)? {
                             continue;
                         }
                         let share = self.surface_load_share() * self.mesh.be_volume(i); 
                         let normal = if it.p_type == ParamType::PressureLoad { self.mesh.be_normal(i) } else { array![1., 1., 1.] };
                         for j in 0..self.mesh.be.shape()[1] {
-                            let val = it.get_value(&x.row(j)).unwrap() * share[j];
+                            let val = it.get_value(&x.row(j))? * share[j];
                             if it.direct.contains(Direct::X) {
-                                solver.lock().unwrap().add_vector_value(self.mesh.be[[i, j]] * self.mesh.freedom + 0, val * normal[0]).unwrap();    
+                                solver.lock().unwrap().add_vector_value(self.mesh.be[[i, j]] * self.mesh.freedom + 0, val * normal[0])?;    
                             }
                             if it.direct.contains(Direct::Y) && (self.mesh.is_2d() || self.mesh.is_3d()) {
-                                solver.lock().unwrap().add_vector_value(self.mesh.be[[i, j]] * self.mesh.freedom + 1, val * normal[1]).unwrap();    
+                                solver.lock().unwrap().add_vector_value(self.mesh.be[[i, j]] * self.mesh.freedom + 1, val * normal[1])?;    
                             }
                             if it.direct.contains(Direct::Z) && self.mesh.is_3d() {
-                                solver.lock().unwrap().add_vector_value(self.mesh.be[[i, j]] * self.mesh.freedom + 2, val * normal[2]).unwrap();    
+                                solver.lock().unwrap().add_vector_value(self.mesh.be[[i, j]] * self.mesh.freedom + 2, val * normal[2])?;    
                             }
                         }
                     }
                 }
-            });
+                Ok(())
+            })?;
         }
         Ok(())
     }

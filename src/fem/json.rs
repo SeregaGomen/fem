@@ -5,37 +5,35 @@ use crate::error::{ErrorCode, Error, error};
 use crate::fem::Direct;
 
 
+///! {
+///!     "Mesh": "/home/serg/work/python/pyfem/mesh/cube.trpa",
+///!     "Result": "/home/serg/work/python/pyfem/mesh/cube.res",
+///!     "YoungModulus": 203200,
+///!     "PoissonRatio": 0.27,
+///!     "Threads": 4,
+///!     "BoundaryConditions": [
+///!         {
+///!             "Value": "0", 
+///!             "Predicate": "z == 0", 
+///!             "Direct": "XYZ"
+///!         }
+///!     ],
+///!     "VolumeLoad": [
+///!         {
+///!             "Value": "-0.5", 
+///!             "Predicate": "", 
+///!             "Direct": "Z"
+///!         }
+///!     ]
+///! }
+
+
 #[allow(dead_code)]
 pub fn read_json(file_name: &str) -> Result<(), Error> {
-
-    // let data = r#"
-    // {
-    //     "Mesh": "/home/serg/work/python/pyfem/mesh/cube.trpa",
-    //     "Result": "/home/serg/work/python/pyfem/mesh/cube.res",
-    //     "YoungModulus": 203200,
-    //     "PoissonRatio": 0.27,
-    //     "Threads": 4,
-    //     "BoundaryConditions": [
-    //         {
-    //             "Value": "0", 
-    //             "Predicate": "z == 0", 
-    //             "Direct": "XYZ"
-    //         }
-    //     ],
-    //     "VolumeLoad": [
-    //         {
-    //             "Value": "-0.5", 
-    //             "Predicate": "", 
-    //             "Direct": "Z"
-    //         }
-    //     ]
-    // }"#;
-
     let data = match fs::read_to_string(file_name) {
         Ok(v) => v,
         Err(_) => return Err(error(ErrorCode::ReadFile)),
     };
-
     let v = match json::parse(data.as_str()) {
         Ok(v) => v,
         Err(e) => {
@@ -43,7 +41,6 @@ pub fn read_json(file_name: &str) -> Result<(), Error> {
             return Err(error(ErrorCode::JsonError));
         }
     };
-
     let mesh_name = match v["Mesh"].as_str() {
         Some(v) => v,
         None => return Err(error(ErrorCode::MeshError)),
@@ -60,24 +57,23 @@ pub fn read_json(file_name: &str) -> Result<(), Error> {
         None => 1,
     };
     fem.set_num_threads(nthreads as usize);
-
     let thickness = match v["Thickness"].as_f64() {
         Some(v) => v,
         None => 1.0,
     };
     fem.set_thickness(thickness);
-
     let ym = match v["YoungModulus"].as_f64() {
         Some(v) => v,
         None => return Err(error(ErrorCode::YoungModulusError)),
     };
     fem.set_young_modulus(ym);
-
-    let pr = match v["PoissonRatio"].as_f64() {
-        Some(v) => v,
-        None => return Err(error(ErrorCode::PoissonRatioError)),
-    };
-    fem.set_poisons_ratio(pr);
+    if fem.is_2d() || fem.is_3d() {
+        let pr = match v["PoissonRatio"].as_f64() {
+            Some(v) => v,
+            None => return Err(error(ErrorCode::PoissonRatioError)),
+        };
+        fem.set_poisons_ratio(pr);
+    }
 
     for i in 0..v["BoundaryConditions"].len() {
         let direct = get_json_direct("BoundaryConditions", &v, i)?;
