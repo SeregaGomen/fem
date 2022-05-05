@@ -125,26 +125,26 @@ fn test_shell_3(nthreads: usize) {
 }
 
 
-fn main() {
-    test_1d2(8);
-    // test_2d4(8);
-    // test_3d8(8);
-    // test_shell_3(8);
-}
-
-
 // fn main() {
-//     use std::env;
-
-//     let args: Vec<String> = env::args().collect();
-    
-//     if args.len() < 2 {
-//         println!("Too few parameters!");
-//         return;
-//     }
-//     match json::read_json(args[1].as_str()) {
-//          Ok(_) => println!("Done"),
-//          Err(e) => println!("Error: {}", e),
-//     };
+//     test_1d2(8);
+//     // test_2d4(8);
+//     // test_3d8(8);
+//     // test_shell_3(8);
 // }
+
+
+fn main() {
+    use std::env;
+
+    let args: Vec<String> = env::args().collect();
+    
+    if args.len() < 2 {
+        println!("Too few parameters!");
+        return;
+    }
+    match json::read_json(args[1].as_str()) {
+         Ok(_) => println!("Done"),
+         Err(e) => println!("Error: {}", e),
+    };
+}
 
