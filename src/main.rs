@@ -16,28 +16,25 @@ mod json;
 // 8. Вывод на экран информации о погрешности при итерационном решении СЛАУ
 // 9. Запись результатов (x)
 
-use std::env;
 use fem::Direct;
 
 #[allow(dead_code)]
-fn test_1d2() {
-    let mesh_name = "D:/Work/python/pyfem/mesh/body1d.trpa";
-    // let mesh_name = "/home/serg/work/python/pyfem/mesh/body1d.trpa";
-    let mut fem: fem::FEM = match fem::FEM::new(mesh_name) {
+fn test_1d2(nthreads: usize) {
+    let file_name = ("data/body1d.mesh", "data/body1d.res");
+    let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
         Err(err) => {
             println!("{}", err);
             return;
         }
         Ok(fem) => fem,
     };
-    fem.set_num_threads(4);
+    fem.set_num_threads(nthreads);
     fem.set_young_modulus(203200.);
-    // fem.set_poisons_ratio(0.33);
     fem.set_thickness(1.0);
     fem.set_eps(1.0e-6);
     fem.add_boundary_condition("0", "x == 0", Direct::X);
     fem.add_concentrated_load("1", "x == 10", Direct::X);
-    match fem.generate("D:/Work/python/pyfem/mesh/body1d.res") {
+    match fem.generate(file_name.1) {
         Err(err) => {
             println!("{}", err);
             return;
@@ -47,10 +44,8 @@ fn test_1d2() {
 }
 
 #[allow(dead_code)]
-fn test_2d4() {
-    let file_name = ("D:/Work/python/pyfem/mesh/console4.trpa", "D:/Work/python/pyfem/mesh/console4.res");
-    // let file_name = ("/home/serg/work/python/pyfem/mesh/console4.trpa", "/home/serg/work/python/pyfem/mesh/console4.res");
-    // let file_name = ("/home/serg/work/Qt/QFEM/mesh/console/console4.trpa", "/home/serg/work/Qt/QFEM/mesh/console/console4.res");
+fn test_2d4(nthreads: usize) {
+    let file_name = ("data/console.mesh", "data/console.res");
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
         Err(err) => {
             println!("{}", err);
@@ -58,15 +53,14 @@ fn test_2d4() {
         }
         Ok(fem) => fem,
     };
-    fem.set_num_threads(4);
+    fem.set_num_threads(nthreads);
     fem.set_young_modulus(203200.0);
     fem.set_poisons_ratio(0.27);
 
     
     fem.set_thickness(1.0);
     fem.add_boundary_condition("0", "x == 0", Direct::X | Direct::Y);
-    // fem.add_concentrated_load(String::from("-1"), String::from("x == 10"), Direct::Y);
-    fem.add_volume_load("1", "", Direct::Y);
+    fem.add_concentrated_load("-1", "x == 10", Direct::Y);
     match fem.generate(file_name.1) {
         Err(err) => {
             println!("{}", err);
@@ -77,10 +71,8 @@ fn test_2d4() {
 }
 
 #[allow(dead_code)]
-fn test_3d4() {
-    let file_name = ("/home/serg/work/Qt/QFEM/mesh/balka.trpa", "/home/serg/work/Qt/QFEM/mesh/balka.res");
-    // let file_name = ("D:/Work/Qt/QFEM/mesh/balka.trpa", "D:/Work/Qt/QFEM/mesh/balka.res");
-    // let mesh_name = "D:/Work/Qt/QFEM/mesh/balka.trpa";
+fn test_3d8(nthreads: usize) {
+    let file_name = ("data/cube.mesh", "data/cube.res");
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
         Err(err) => {
             println!("{}", err);
@@ -88,47 +80,12 @@ fn test_3d4() {
         }
         Ok(fem) => fem,
     };
-    fem.set_num_threads(4);
-    fem.set_young_modulus(203200.);
-    fem.set_poisons_ratio(0.27);
-    fem.add_boundary_condition("0", "y == 0", Direct::X | Direct::Y | Direct::Z);
-    // fem.add_concentrated_load(String::from("-1"), String::from("y == 4"), Direct::Y);
-    fem.add_volume_load("-100", "", Direct::Y);
-    match fem.generate(file_name.1) {
-        Err(err) => {
-            println!("{}", err);
-            return;
-        }
-        _ => println!("Done"),
-    }
-}
-
-#[allow(dead_code)]
-fn test_3d8() {
-    let file_name = ("D:/work/python/pyfem/mesh/cube.trpa", "D:/work/python/pyfem/mesh/cube.res");
-    // let file_name = ("/home/serg/work/python/pyfem/mesh/cube.trpa", "/home/serg/work/python/pyfem/mesh/cube.res");
-    let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
-        Err(err) => {
-            println!("{}", err);
-            return;
-        }
-        Ok(fem) => fem,
-    };
-    fem.set_num_threads(4);
+    fem.set_num_threads(nthreads);
     fem.set_young_modulus(203200.);
     fem.set_poisons_ratio(0.27);
     
-    fem.add_boundary_condition("0", "z == 0", Direct::X | Direct::Y | Direct::Z);
-    // fem.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
-    
-    // fem.add_concentrated_load("1", "z == 1", Direct::Z);
-    // fem.add_volume_load("1", "", Direct::Z);
-    // fem.add_surface_load("1", "z == 1", Direct::Z);
-    
-    // fem.add_pressure_load("1", "z == 1");
-
-    // fem.add_surface_load_fun(|_x, _y, _z| { -0.5 }, |_x, _y, z| { if z == 1. { true } else { false } }, Direct::Z);
-    
+    // fem.add_boundary_condition("0", "z == 0", Direct::X | Direct::Y | Direct::Z);
+    fem.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
     // fem.add_volume_load_fun(|_x, _y, _z| { -0.5 }, |_x, _y, _z| { true }, Direct::Z);
     fem.add_volume_load("-0.5", "", Direct::Z);
     match fem.generate(file_name.1) {
@@ -141,11 +98,8 @@ fn test_3d8() {
 }
 
 #[allow(dead_code)]
-fn test_shell_3() {
-    // let file_name = ("D:/work/python/pyfem/mesh/shell-tube-3.trpa", "D:/work/python/pyfem/mesh/shell-tube-3.res");
-    let file_name = ("/home/serg/work/python/pyfem/mesh/shell-tube-3.trpa", "/home/serg/work/python/pyfem/mesh/shell-tube-3.res");
-    // let file_name = ("/home/serg/work/python/pyfem/mesh/shell4_1_0.trpa", "/home/serg/work/python/pyfem/mesh/shell4_1_0.res");
-    // let file_name = ("D:/work/python/pyfem/mesh/shell4_1_0.trpa", "D:/work/python/pyfem/mesh/shell4_1_0.res");
+fn test_shell_3(nthreads: usize) {
+    let file_name = ("data/shell-tube-3.mesh", "data/shell-tube-3.res");
     let mut fem: fem::FEM = match fem::FEM::new(file_name.0) {
         Err(err) => {
             println!("{}", err);
@@ -153,16 +107,13 @@ fn test_shell_3() {
         }
         Ok(fem) => fem,
     };
-    fem.set_num_threads(4);
+    fem.set_num_threads(nthreads);
     fem.set_young_modulus(203200.);
     fem.set_poisons_ratio(0.27);
     fem.set_thickness(0.0369);
     
-    // fem.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. || z == 4.014 { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
-    // fem.add_pressure_load_fun(|_x, _y, _z| { 0.05 }, |_x, _y, _z| { true });
-    fem.set_eps(0.01);
-    fem.add_boundary_condition("0", "z == 0. || z == 4.014", Direct::X | Direct::Y | Direct::Z);
-    fem.add_pressure_load("0.05", "");
+    fem.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. || z == 4.014 { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
+    fem.add_pressure_load_fun(|_x, _y, _z| { 0.05 }, |_x, _y, _z| { true });
 
     match fem.generate(file_name.1) {
         Err(err) => {
@@ -175,20 +126,25 @@ fn test_shell_3() {
 
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    
-    if args.len() < 2 {
-        println!("Too few parameters!");
-        return;
-    }
-    // test_1d2();
-    // test_2d4();
-    // test_3d4();
-    // test_3d8();
-    // test_shell_3();
-    match json::read_json(args[1].as_str()) {
-         Ok(_) => println!("Done"),
-         Err(e) => println!("Error: {}", e),
-    };
+    test_1d2(8);
+    // test_2d4(8);
+    // test_3d8(8);
+    // test_shell_3(8);
 }
+
+
+// fn main() {
+//     use std::env;
+
+//     let args: Vec<String> = env::args().collect();
+    
+//     if args.len() < 2 {
+//         println!("Too few parameters!");
+//         return;
+//     }
+//     match json::read_json(args[1].as_str()) {
+//          Ok(_) => println!("Done"),
+//          Err(e) => println!("Error: {}", e),
+//     };
+// }
 

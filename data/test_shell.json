@@ -1,22 +1,22 @@
-    {
-        "Mesh": "data/shell-tube-3.trpa",
-        "Result": "data/shell-tube-3.res",
-        "YoungModulus": 203200,
-        "PoissonRatio": 0.27,
-        "Thickness": 0.0369,
-        "Threads": 8,
-        "Eps": 1.0e-6,
-        "BoundaryConditions": [
-            {
-                "Value": "0", 
-                "Predicate": "z == 0. or z == 4.014", 
-                "Direct": "XYZ"
-            }
-        ],
-        "PressureLoad": [
-            {
-                "Value": "0.05", 
-                "Predicate": "" 
-            }
-        ]
-    }
+{
+    "Mesh": "data/shell-tube-3.mesh",
+    "Result": "data/shell-tube-3.res",
+    "YoungModulus": 203200,
+    "PoissonRatio": 0.27,
+    "Thickness": 0.0369,
+    "Threads": 8,
+    "Eps": 1.0e-6,
+    "BoundaryConditions": [
+        {
+            "Value": "0", 
+            "Predicate": "z == 0. or z == 4.014", 
+            "Direct": "XYZ"
+        }
+    ],
+    "PressureLoad": [
+        {
+            "Value": "0.05", 
+            "Predicate": "" 
+        }
+    ]
+}
