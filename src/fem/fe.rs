@@ -1,8 +1,8 @@
 // Поддержка конечного элемента
 use std::fmt;
 use ndarray::prelude::*;
-use crate::fem::util;
-use crate::error::Error;
+use super::util;
+use super::error::Error;
 
 // Типы конечных элементов (КЭ)
 #[derive(Copy, Clone, PartialEq)]
@@ -60,7 +60,7 @@ pub trait FiniteElement {
 
 
 pub mod fe1d {
-    use crate::error::Error; 
+    use super::Error; 
     use super::FiniteElement;
     use ndarray::prelude::*;
     use crate::fem::util;
@@ -159,7 +159,7 @@ pub mod fe1d {
 }
 
 pub mod fe2d {
-    use crate::error::Error; 
+    use super::Error; 
     use super::FiniteElement;
     use ndarray::prelude::*;
     use crate::fem::util;
@@ -488,7 +488,7 @@ pub mod fe2d {
 }
 
 pub mod fe3d {
-    use crate::error::Error; 
+    use super::Error; 
     use super::FiniteElement;
     use ndarray::prelude::*;
     use crate::fem::util;

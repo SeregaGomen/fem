@@ -20,7 +20,7 @@
                 }
             },
             "args": [
-                "data/test_shell.json"
+                "data/tank.json"
             ],
             "cwd": "${workspaceFolder}"
         },

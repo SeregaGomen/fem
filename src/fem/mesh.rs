@@ -4,7 +4,7 @@ use std::fs::OpenOptions;
 use std::io::{BufReader, BufWriter, prelude::*};
 use ndarray::prelude::*;
 use super::fe::FEType;
-use crate::error::{ErrorCode, Error, error};
+use super::error::{ErrorCode, Error, error};
 use super::msg::Messenger;
 use super::util;
 

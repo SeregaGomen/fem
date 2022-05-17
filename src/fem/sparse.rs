@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 use ndarray::{Array1, prelude::*};
-use crate::error::{ErrorCode, Error, error};
+use super::error::{ErrorCode, Error, error};
 use super::util;
 use super::msg::Messenger;
 

@@ -2,7 +2,7 @@
 use std::io::prelude::*;
 use std::str;
 use ndarray::prelude::*;
-use crate::error::{ErrorCode, Error, error};
+use super::error::{ErrorCode, Error, error};
 
 
 #[allow(dead_code)]

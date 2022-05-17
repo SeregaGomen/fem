@@ -1,21 +1,23 @@
 {
-	"Mesh": "data/cube.mesh",
-    "Result": "data/cube.res",
+    "Mesh": "data/tank.mesh",
+    "Result": "data/tank.res",
     "YoungModulus": 203200,
     "PoissonRatio": 0.27,
+    "Thickness": 0.01,
     "Threads": 8,
+    "Eps": 1.0e-3,
     "BoundaryConditions": [
         {
             "Value": "0", 
-            "Predicate": "z == 0", 
+            "Predicate": "x == 14.338", 
             "Direct": "XYZ"
         }
     ],
     "VolumeLoad": [
         {
-            "Value": "-0.5", 
+            "Value": "-1000", 
             "Predicate": "", 
-            "Direct": "Z"
+            "Direct": "X"
         }
     ]
 }

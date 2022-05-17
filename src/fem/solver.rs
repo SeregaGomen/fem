@@ -1,5 +1,5 @@
 use ndarray::{Array1};
-use crate::error::{ErrorCode, Error, error};
+use super::error::{ErrorCode, Error, error};
 use super::sparse::{SparseMatrix, MapSparseMatrix, EnvSparseMatrix};
 use super::mesh::Mesh;
 

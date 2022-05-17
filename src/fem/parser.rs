@@ -1,4 +1,4 @@
-use crate::error::{ErrorCode, Error, error};
+use super::error::{ErrorCode, Error, error};
 use std::ptr;
 
 #[derive(Copy, Clone, PartialEq)]
