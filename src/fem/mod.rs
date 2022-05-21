@@ -73,8 +73,7 @@ impl<'a> Parameter<'a> {
             None => {
                 if self.predicate.len() == 0 {
                     Ok(true)
-                }
-                else {
+                } else {
                     let var_name = array!["x", "y", "z"];
                     let mut parser = Parser::new();
                     for i in 0..x.len() {

@@ -225,8 +225,7 @@ pub mod fe2d {
                         b[[2, j * self.freedom() + 0]] = b[[1, j * self.freedom() + 1]];
                     }
                     local = local + b.t().dot(&self.d()).dot(&b) * (self.w()[i] * self.thk() * jacobian.abs());
-                }
-                else {
+                } else {
                     let mut bm: Array2<f64> = Array2::zeros((3, size));
                     let mut bp: Array2<f64> = Array2::zeros((3, size));
                     let mut bc: Array2<f64> = Array2::zeros((2, size));
@@ -288,8 +287,7 @@ pub mod fe2d {
                         res[[j + 3, i]] += s[j];
                     }
                 }
-            }
-            else {
+            } else {
                 // Преобразование перемещений
                 let m = util::create_ext_transform_matrix(&self.m(), self.size(), self.freedom());
                 let lu = m.dot(u);    

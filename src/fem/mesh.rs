@@ -178,8 +178,7 @@ impl Mesh {
             if writer.flush().is_err() {
                 return Err(error(ErrorCode::WriteFile));
             }
-        }
-        else {
+        } else {
             mesh_map = vec![vec![]; num_vertex];
             for i in 0..num_vertex {
                 if i > 0 {

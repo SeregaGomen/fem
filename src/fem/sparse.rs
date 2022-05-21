@@ -55,8 +55,7 @@ impl SparseMatrix for EnvSparseMatrix {
         if i >= j {
             if i == j {
                 self.diag[i] += value;
-            }
-            else
+            } else
             {
                 if self.xenv[i + 1] - i + j >= self.xenv[i] {
                     self.env[self.xenv[i + 1] - i + j] += value;
@@ -69,8 +68,7 @@ impl SparseMatrix for EnvSparseMatrix {
         if i >= j {
             if i == j {
                 self.diag[i] = value;
-            }
-            else
+            } else
             {
                 if self.xenv[i + 1] - i + j >= self.xenv[i] {
                     self.env[self.xenv[i + 1] - i + j] = value;
@@ -83,8 +81,7 @@ impl SparseMatrix for EnvSparseMatrix {
         if i >= j {
             if i == j {
                 return Ok(self.diag[i]);
-            }
-            else {
+            } else {
                 if self.xenv[i + 1] - i + j >= self.xenv[i] {
                     return Ok(self.env[self.xenv[i + 1] - i + j]);
                 }

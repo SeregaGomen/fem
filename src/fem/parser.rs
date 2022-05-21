@@ -148,8 +148,7 @@ impl<'a> Parser<'a> {
             if self.token_type == Some(TokenType::Delimiter) {
                 if self.tok == Some(Token::Rb) {
                     return Err(error(ErrorCode::BracketError))
-                }
-                else {
+                } else {
                     return Err(error(ErrorCode::SyntaxError))
                 }
             }
@@ -220,8 +219,7 @@ impl<'a> Parser<'a> {
                         self.token.push(self.expression[self.index]);
                         self.index += 1
                     }
-                }
-                else {
+                } else {
                     return Err(error(ErrorCode::InvalidNumber));   
                 }
             }

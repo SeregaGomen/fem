@@ -53,16 +53,13 @@ pub fn inv(m: &Array2<f64>) -> Result<Array2<f64>, Error> {
     let ret;
     if m.shape()[0] == 1 && m.shape()[1] == 1 {
         ret = array![[1.0 / m[[0, 0]]]];
-    }
-    else if m.shape()[0] == 2 && m.shape()[1] == 2 {
+    } else if m.shape()[0] == 2 && m.shape()[1] == 2 {
         ret = array![[m[[1, 1]], -m[[0, 1]]], [-m[[1, 0]], m[[0, 0]]]] / det(m)?;
-    }
-    else if m.shape()[0] == 3 && m.shape()[1] == 3 {
+    } else if m.shape()[0] == 3 && m.shape()[1] == 3 {
         ret = array![[m[[1, 1]] * m[[2, 2]] - m[[1, 2]] * m[[2, 1]], m[[0, 2]] * m[[2, 1]] - m[[0, 1]] * m[[2, 2]], m[[0, 1]] * m[[1, 2]] - m[[0, 2]] * m[[1, 1]]], 
                     [m[[1, 2]] * m[[2, 0]] - m[[1, 0]] * m[[2, 2]], m[[0, 0]] * m[[2, 2]] - m[[0, 2]] * m[[2, 0]], m[[0, 2]] * m[[1, 0]] - m[[0, 0]] * m[[1, 2]]], 
                     [m[[1, 0]] * m[[2, 1]] - m[[1, 1]] * m[[2, 0]], m[[0, 1]] * m[[2, 0]] - m[[0, 0]] * m[[2, 1]], m[[0, 0]] * m[[1, 1]] - m[[0, 1]] * m[[1, 0]]]] / det(m)?;
-    }
-    else {
+    } else {
         return Err(error(ErrorCode::InverseMatrix));
     }
     Ok(ret)
@@ -73,15 +70,12 @@ pub fn det(m: &Array2<f64>) -> Result<f64, Error> {
     let ret;
     if m.shape()[0] == 1 && m.shape()[1] == 1 {
         ret = m[[0, 0]];
-    }
-    else if m.shape()[0] == 2 && m.shape()[1] == 2 {
+    } else if m.shape()[0] == 2 && m.shape()[1] == 2 {
         ret = m[[0, 0]] * m[[1, 1]] - m[[0, 1]] * m[[1, 0]];
-    }
-    else if m.shape()[0] == 3 && m.shape()[1] == 3 {
+    } else if m.shape()[0] == 3 && m.shape()[1] == 3 {
         ret = m[[0, 0]] * m[[1, 1]] * m[[2, 2]] + m[[0, 1]] * m[[1, 2]] * m[[2, 0]] + m[[0, 2]] * m[[1, 0]] * m[[2, 1]] -
                 m[[0, 2]] * m[[1, 1]] * m[[2, 0]] - m[[0, 0]] * m[[1, 2]] * m[[2, 1]] - m[[0, 1]] * m[[1, 0]] * m[[2, 2]];
-    }
-    else {
+    } else {
         return Err(error(ErrorCode::DeterminantMatrix));
     }
     Ok(ret)
