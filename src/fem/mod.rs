@@ -517,17 +517,23 @@ impl<'a> FEM<'a> {
                 return Err(error(ErrorCode::WriteFile));
             }
         }
-        if !write!(stream, "{}\n", self.mesh.num_be).is_ok() {
-            return Err(error(ErrorCode::WriteFile));
-        }
-        for i in 0..self.mesh.be.shape()[0] {
-            for j in 0..self.mesh.be.shape()[1] {
-                if !write!(stream, "{} ", self.mesh.be[[i, j]]).is_ok() {
+        if self.mesh.is_shell() {
+            if !write!(stream, "0\n").is_ok() {
+                return Err(error(ErrorCode::WriteFile));
+            }
+        } else {
+            if !write!(stream, "{}\n", self.mesh.num_be).is_ok() {
+                return Err(error(ErrorCode::WriteFile));
+            }
+            for i in 0..self.mesh.be.shape()[0] {
+                for j in 0..self.mesh.be.shape()[1] {
+                    if !write!(stream, "{} ", self.mesh.be[[i, j]]).is_ok() {
+                        return Err(error(ErrorCode::WriteFile));
+                    }
+                }
+                if !write!(stream, "\n").is_ok() {
                     return Err(error(ErrorCode::WriteFile));
                 }
-            }
-            if !write!(stream, "\n").is_ok() {
-                return Err(error(ErrorCode::WriteFile));
             }
         }
         // Запись результатов расчета

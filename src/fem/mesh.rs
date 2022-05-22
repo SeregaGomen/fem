@@ -278,6 +278,9 @@ impl Mesh {
     pub fn is_3d(&self) -> bool {
         if self.fe_type == FEType::FE2D3S || self.fe_type == FEType::FE2D4S || self.fe_type == FEType::FE3D4 || self.fe_type == FEType::FE3D8 { true } else { false }
     }
+    pub fn is_shell(&self) -> bool {
+        if self.fe_type == FEType::FE2D3S || self.fe_type == FEType::FE2D4S { true } else { false }
+    }
     pub fn fe_volume(&self, i: usize) -> f64 {
         let x = self.get_fe_coord(i);
         match self.fe_type {
