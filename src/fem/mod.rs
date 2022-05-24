@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use bitflags::bitflags;
 use ndarray::{Array1, Array2, prelude::*};
 use std::time::Instant;
-use error::{ErrorCode, Error, error};
+use error::FemError;
 use mesh::Mesh;
 // use solver::{Solver, LzhSolver, EnvSolver};
 use solver::{Solver, LzhSolver};
@@ -54,7 +54,7 @@ impl<'a> Parameter<'a> {
     fn new_fun(p_type: ParamType, value_f: fn(f64, f64, f64) -> f64, predicate_f: fn(f64, f64, f64) -> bool, direct: Direct) -> Self {
         Self { p_type, value: "", predicate: "", value_fun: Some(value_f), predicate_fun: Some(predicate_f), direct }
     }
-    fn get_value(&self, x: &ArrayView1<f64>) -> Result<f64, Error> {
+    fn get_value(&self, x: &ArrayView1<f64>) -> Result<f64, FemError> {
         match self.value_fun {
             None => {
                 let var_name = array!["x", "y", "shell-tube-3z"];
@@ -68,7 +68,7 @@ impl<'a> Parameter<'a> {
             Some(fun) => Ok(fun(x[0], if x.len() > 1 { x[1] } else { 0. }, if x.len() > 2 { x[2] } else { 0. } )),
         }
     }
-    fn get_predicate(&self, x: &ArrayView1<f64>) -> Result<bool, Error> {
+    fn get_predicate(&self, x: &ArrayView1<f64>) -> Result<bool, FemError> {
         match self.predicate_fun {
             None => {
                 if self.predicate.len() == 0 {
@@ -117,7 +117,7 @@ pub struct FEM<'a> {
 
 #[allow(dead_code)]
 impl<'a> FEM<'a> {
-    pub fn new(mesh_name: &str) -> Result<Self, Error> {
+    pub fn new(mesh_name: &str) -> Result<Self, FemError> {
         let mesh = Mesh::new(mesh_name)?;
         Ok(Self {mesh, param: FEMParameter::new()})
     }
@@ -169,7 +169,7 @@ impl<'a> FEM<'a> {
     pub fn is_3d(&self) -> bool {
         self.mesh.is_3d()
     }
-    pub fn generate(&mut self, res_name: &str) -> Result<(), Error> {
+    pub fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
         let time = Instant::now();
         let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
@@ -183,9 +183,9 @@ impl<'a> FEM<'a> {
         println!("Lead time: {:.2?}", time.elapsed());
         Ok(())
     }
-    fn set_global_matrix(&self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
+    fn set_global_matrix(&self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
         let msg = Arc::new(Mutex::new(Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5)));
-        (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), Error> {
+        (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
             msg.lock().unwrap().add_progress();
             let fe = self.calc_fe_matrix(i)?;
             for j in 0..fe.shape()[0] {
@@ -227,7 +227,7 @@ impl<'a> FEM<'a> {
             println!("{}:\t{}\t{}", names[i], util::fmt_f64(util::get_min(res.row(i)), 12, 5, 2), util::fmt_f64(util::get_max(res.row(i)), 12, 5, 2));
         }
     }
-    fn calc_results(&self, u: &Array1<f64>, res_name: &str) -> Result<(), Error> {
+    fn calc_results(&self, u: &Array1<f64>, res_name: &str) -> Result<(), FemError> {
         let fe_size = self.mesh.fe.shape()[1];
         let freedom = self.mesh.freedom;
         let res = Mutex::new(Array2::zeros((self.num_results(), self.mesh.num_vertex)));
@@ -240,7 +240,7 @@ impl<'a> FEM<'a> {
         }
         // Вычисление деформаций, напряжений, ...
         let msg = Arc::new(Mutex::new(Messenger::new("Calculation of standard finite element results", 1, self.mesh.num_fe as i64, 5)));
-        (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), Error> {
+        (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
             msg.lock().unwrap().add_progress();
             // Формируем вектор перемещений для текущего КЭ
             let mut fe_u = Array1::zeros(fe_size * freedom);
@@ -271,9 +271,9 @@ impl<'a> FEM<'a> {
         self.print_summary(&res);
         self.save_results(&res, res_name)
     }
-    fn set_boundary_condition(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
+    fn set_boundary_condition(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
         let msg = Mutex::new(Messenger::new("Using of boundary conditions", 1, self.mesh.num_vertex as i64, 5));
-        (0..self.mesh.num_vertex).into_par_iter().try_for_each(|i| -> Result<(), Error> {
+        (0..self.mesh.num_vertex).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
             msg.lock().unwrap().add_progress();
             for it in &self.param.param {
                 if it.p_type == ParamType::BoundaryCondition {
@@ -299,10 +299,10 @@ impl<'a> FEM<'a> {
         msg.lock().unwrap().stop();
         Ok(())
     }
-    fn set_concentrated_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
+    fn set_concentrated_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
         if self.param.find_parameter(ParamType::ConcentratedLoad) {
             let msg = Mutex::new(Messenger::new("Calculation of concentrated loads", 1, self.mesh.num_vertex as i64, 5));
-            (0..self.mesh.num_vertex).into_par_iter().try_for_each(|i| -> Result<(), Error> {
+            (0..self.mesh.num_vertex).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
                 msg.lock().unwrap().add_progress();
                 for it in &self.param.param {
                     if it.p_type == ParamType::ConcentratedLoad {
@@ -327,10 +327,10 @@ impl<'a> FEM<'a> {
         }
         Ok(())
     }
-    fn set_volume_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
+    fn set_volume_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
         if self.param.find_parameter(ParamType::VolumeLoad) {
             let msg = Mutex::new(Messenger::new("Calculation of volume loads", 1, self.mesh.num_fe as i64, 5));
-            (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), Error> {
+            (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
                 msg.lock().unwrap().add_progress();
                 for it in &self.param.param {
                     if it.p_type == ParamType::VolumeLoad {
@@ -358,10 +358,10 @@ impl<'a> FEM<'a> {
         }
         Ok(())
     }
-    fn set_surface_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), Error> {
+    fn set_surface_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
         if self.param.find_parameter(ParamType::PressureLoad) || self.param.find_parameter(ParamType::SurfaceLoad) {
             let msg = Mutex::new(Messenger::new("Calculation of surface loads", 1, self.mesh.num_be as i64, 5));
-            (0..self.mesh.num_be).into_par_iter().try_for_each(|i| -> Result<(), Error> {
+            (0..self.mesh.num_be).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
                 msg.lock().unwrap().add_progress();
                 for it in &self.param.param {
                     if it.p_type == ParamType::PressureLoad || it.p_type == ParamType::SurfaceLoad {
@@ -390,7 +390,7 @@ impl<'a> FEM<'a> {
         }
         Ok(())
     }
-    fn check_elem(&self, x: &Array2<f64>, param: &Parameter) -> Result<bool, Error> {
+    fn check_elem(&self, x: &Array2<f64>, param: &Parameter) -> Result<bool, FemError> {
         for i in 0..x.shape()[0] {
             if param.get_predicate(&x.row(i))? == false {
                 return Ok(false);
@@ -414,7 +414,7 @@ impl<'a> FEM<'a> {
             FEType::FE2D4S | FEType::FE3D8 => array![ 0.25, 0.25, 0.25, 0.25 ],
         } 
     }
-    fn calc_fe_matrix(&self, i: usize) -> Result<Array2<f64>, Error> {
+    fn calc_fe_matrix(&self, i: usize) -> Result<Array2<f64>, FemError> {
         use crate::fem::fe::fe1d::FiniteElement1D;
         use crate::fem::fe::fe2d::FiniteElement2D;
         use crate::fem::fe::fe3d::FiniteElement3D;
@@ -442,7 +442,7 @@ impl<'a> FEM<'a> {
             }
         } 
     }
-    fn calc_fe_results(&self, i: usize, u: Array1<f64>) -> Result<Array2<f64>, Error> {
+    fn calc_fe_results(&self, i: usize, u: Array1<f64>) -> Result<Array2<f64>, FemError> {
         use crate::fem::fe::fe1d::FiniteElement1D;
         use crate::fem::fe::fe2d::FiniteElement2D;
         use crate::fem::fe::fe3d::FiniteElement3D;
@@ -470,93 +470,93 @@ impl<'a> FEM<'a> {
             }
         } 
     }
-    fn save_results(&self, res: &Array2<f64>, file_name: &str) -> Result<(), Error> {
+    fn save_results(&self, res: &Array2<f64>, file_name: &str) -> Result<(), FemError> {
         use chrono::{Datelike, Timelike, Utc};
         use std::fs::File;
         use std::io::{BufWriter, prelude::*};
                 
         let file: File = match File::create(file_name) {
-            Err(_) => return Err(error(ErrorCode::OpenFile)),
+            Err(_) => return Err(FemError::OpenFile),
             Ok(file) => file,
         };
         let mut stream = BufWriter::new(file);
         // Запись сигнатуры
         if !write!(stream, "FEM Solver Results File\n").is_ok() {
-            return Err(error(ErrorCode::WriteFile));
+            return Err(FemError::WriteFile);
         }
         // Вывод сетки
         if !write!(stream, "Mesh\n").is_ok() {
-            return Err(error(ErrorCode::WriteFile));
+            return Err(FemError::WriteFile);
         }
         if !write!(stream, "{}\n", self.mesh.fe_type).is_ok() {
-            return Err(error(ErrorCode::WriteFile));
+            return Err(FemError::WriteFile);
         }
         if !write!(stream, "{}\n", self.mesh.num_vertex).is_ok() {
-            return Err(error(ErrorCode::WriteFile));
+            return Err(FemError::WriteFile);
         }
         for i in 0..self.mesh.x.shape()[0] {
             for j in 0..self.mesh.x.shape()[1] {
                 if !write!(stream, "{} ", self.mesh.x[[i, j]]).is_ok() {
-                    return Err(error(ErrorCode::WriteFile));
+                    return Err(FemError::WriteFile);
                 }
             }
             if !write!(stream, "\n").is_ok() {
-                return Err(error(ErrorCode::WriteFile));
+                return Err(FemError::WriteFile);
             }
         }
         if !write!(stream, "{}\n", self.mesh.num_fe).is_ok() {
-            return Err(error(ErrorCode::WriteFile));
+            return Err(FemError::WriteFile);
         }
         for i in 0..self.mesh.fe.shape()[0] {
             for j in 0..self.mesh.fe.shape()[1] {
                 if !write!(stream, "{} ", self.mesh.fe[[i, j]]).is_ok() {
-                    return Err(error(ErrorCode::WriteFile));
+                    return Err(FemError::WriteFile);
                 }
             }
             if !write!(stream, "\n").is_ok() {
-                return Err(error(ErrorCode::WriteFile));
+                return Err(FemError::WriteFile);
             }
         }
         if self.mesh.is_shell() {
             if !write!(stream, "0\n").is_ok() {
-                return Err(error(ErrorCode::WriteFile));
+                return Err(FemError::WriteFile);
             }
         } else {
             if !write!(stream, "{}\n", self.mesh.num_be).is_ok() {
-                return Err(error(ErrorCode::WriteFile));
+                return Err(FemError::WriteFile);
             }
             for i in 0..self.mesh.be.shape()[0] {
                 for j in 0..self.mesh.be.shape()[1] {
                     if !write!(stream, "{} ", self.mesh.be[[i, j]]).is_ok() {
-                        return Err(error(ErrorCode::WriteFile));
+                        return Err(FemError::WriteFile);
                     }
                 }
                 if !write!(stream, "\n").is_ok() {
-                    return Err(error(ErrorCode::WriteFile));
+                    return Err(FemError::WriteFile);
                 }
             }
         }
         // Запись результатов расчета
         if !write!(stream, "Results\n").is_ok() {
-            return Err(error(ErrorCode::WriteFile));
+            return Err(FemError::WriteFile);
         }
         let now = Utc::now();
         if !write!(stream, "{:02}.{:02}.{:4} - {:02}:{:02}:{:02}\n",now.day(), now.month(), now.year(), now.hour(), now.minute(), now.second()).is_ok() {
-            return Err(error(ErrorCode::WriteFile));
+            return Err(FemError::WriteFile);
         }
         if !write!(stream, "{}\n", self.num_results()).is_ok() {
-            return Err(error(ErrorCode::WriteFile));
+            return Err(FemError::WriteFile);
         }
         for i in 0..res.shape()[0] {
             if !write!(stream, "{}\n", self.fun_names()[i]).is_ok() {
-                return Err(error(ErrorCode::WriteFile));
+                return Err(FemError::WriteFile);
             }
             if !write!(stream, "0\n{}\n", res.shape()[1]).is_ok() {
-                return Err(error(ErrorCode::WriteFile));
+                return Err(FemError::WriteFile);
             }
             for j in 0..res.shape()[1] {
                 if !write!(stream, "{}\n", res[[i, j]]).is_ok() {
-                    return Err(error(ErrorCode::WriteFile));
+                    return Err(FemError::WriteFile);
                 }
             }
         }

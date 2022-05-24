@@ -1,15 +1,15 @@
 use rayon::prelude::*;
 use ndarray::{Array1, prelude::*};
-use super::error::{ErrorCode, Error, error};
+use super::error::FemError;
 use super::util;
 use super::msg::Messenger;
 
 
 pub trait SparseMatrix {
-    fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
-    fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error>;
-    fn get_value(&self, index1: usize, index2: usize) -> Result<f64, Error>;
-    fn solve(&mut self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, Error>;
+    fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
+    fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
+    fn get_value(&self, index1: usize, index2: usize) -> Result<f64, FemError>;
+    fn solve(&mut self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, FemError>;
 }
 
 // Разреженная матрица, хранящая только ненулевые элементы
@@ -29,29 +29,29 @@ pub struct EnvSparseMatrix {
 }
 
 impl SparseMatrix for MapSparseMatrix {
-    fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error> {
+    fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError> {
         let pos = self.find(index1, index2)?;
         //println!("{} - {}", pos.0, pos.1);
         self.data[index1][pos] += value;
         Ok(())
     }
-    fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), Error> {
+    fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError> {
         let pos = self.find(index1, index2)?;
         self.data[index1][pos] = value;
         Ok(())
     }
-    fn get_value(&self, index1: usize, index2: usize) -> Result<f64, Error> {
+    fn get_value(&self, index1: usize, index2: usize) -> Result<f64, FemError> {
         let pos = self.find(index1, index2)?;
         Ok(self.data[index1][pos])
     }
-    fn solve(&mut self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, Error> {
+    fn solve(&mut self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, FemError> {
         self.lzh_solve(rhs, eps)
     }
 }
 
 
 impl SparseMatrix for EnvSparseMatrix {
-    fn add_value(&mut self, i: usize, j: usize, value: f64) -> Result<(), Error> {
+    fn add_value(&mut self, i: usize, j: usize, value: f64) -> Result<(), FemError> {
         if i >= j {
             if i == j {
                 self.diag[i] += value;
@@ -64,7 +64,7 @@ impl SparseMatrix for EnvSparseMatrix {
         }
         Ok(())
     }
-    fn set_value(&mut self, i: usize, j: usize, value: f64) -> Result<(), Error> {
+    fn set_value(&mut self, i: usize, j: usize, value: f64) -> Result<(), FemError> {
         if i >= j {
             if i == j {
                 self.diag[i] = value;
@@ -77,7 +77,7 @@ impl SparseMatrix for EnvSparseMatrix {
         }
         Ok(())
     }
-    fn get_value(&self, i: usize, j: usize) -> Result<f64, Error> {
+    fn get_value(&self, i: usize, j: usize) -> Result<f64, FemError> {
         if i >= j {
             if i == j {
                 return Ok(self.diag[i]);
@@ -87,12 +87,12 @@ impl SparseMatrix for EnvSparseMatrix {
                 }
             }
         }
-        Err(error(ErrorCode::InvalidIndex))
+        Err(FemError::InvalidIndex)
     }
-    fn solve(&mut self, rhs: &Array1<f64>, _eps: f64) -> Result<Array1<f64>, Error> {
+    fn solve(&mut self, rhs: &Array1<f64>, _eps: f64) -> Result<Array1<f64>, FemError> {
         // Факторизация матрицы A = L * L(t)
         if self.esfct() == false {
-            return Err(error(ErrorCode::SingularMatrix));
+            return Err(FemError::SingularMatrix);
         }
         // Вычисление y: (Ly = b)
         let y = self.elslv(self.size, &self.diag, &self.env, &self.xenv, &rhs.to_vec());
@@ -111,9 +111,9 @@ impl MapSparseMatrix {
         }
         Self{nvtxs, blksze, map: map.clone(), data}
     }
-    fn find(&self, index1: usize, index2: usize) -> Result<usize, Error> {
+    fn find(&self, index1: usize, index2: usize) -> Result<usize, FemError> {
         if index1 >= self.nvtxs * self.blksze || index2 >= self.nvtxs * self.blksze  {
-            return Err(error(ErrorCode::InvalidIndex));
+            return Err(FemError::InvalidIndex);
         } 
         let row: usize = index1 / self.blksze;
         for i in 0..self.map[row].len() {
@@ -121,7 +121,7 @@ impl MapSparseMatrix {
                 return Ok(i * self.blksze + index2 % self.blksze);
             }
         }
-        Err(error(ErrorCode::InvalidIndex))
+        Err(FemError::InvalidIndex)
     }
     // fn dot(&self, rhs: &Array1<f64>) -> Array1<f64> {
     //     let mut x: Array1<f64> = Array1::zeros(self.size * self.freedom);
@@ -148,7 +148,7 @@ impl MapSparseMatrix {
         rows.into_iter().map(|(_, row)| row).collect::<Array1<f64>>()
     }
     // Метод Ланцоша
-    fn lzh_solve(&self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, Error> {
+    fn lzh_solve(&self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, FemError> {
         let max_iter = 2 * self.nvtxs * self.blksze;
         let mut x: Array1<f64> = rhs.clone();
         let mut r = self.dot(&x) - &x;
@@ -180,7 +180,7 @@ impl MapSparseMatrix {
             norm = norm1;
         }
         if !is_ok {
-            return Err(error(ErrorCode::SingularMatrix));
+            return Err(FemError::SingularMatrix);
         }
         Ok(x)
     }

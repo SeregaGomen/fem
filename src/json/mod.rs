@@ -4,7 +4,7 @@ use std::fs;
 //use super::error::{ErrorCode, Error, error};
 // use crate::{fem::Direct, fem::error::{ErrorCode, Error, error}};
 use crate::fem::Direct;
-use crate::fem::error::{ErrorCode, Error, error};
+use crate::fem::error::FemError;
 
 
 ///! {
@@ -31,21 +31,12 @@ use crate::fem::error::{ErrorCode, Error, error};
 
 
 #[allow(dead_code)]
-pub fn read_json(file_name: &str) -> Result<(), Error> {
-    let data = match fs::read_to_string(file_name) {
-        Ok(v) => v,
-        Err(_) => return Err(error(ErrorCode::ReadFile)),
-    };
-    let v = match json::parse(data.as_str()) {
-        Ok(v) => v,
-        Err(e) => {
-            println!("{}", e);
-            return Err(error(ErrorCode::JsonError));
-        }
-    };
+pub fn read_json(file_name: &str) -> Result<(), FemError> {
+    let data = fs::read_to_string(file_name)?;
+    let v = json::parse(data.as_str())?;
     let mesh_name = match v["Mesh"].as_str() {
         Some(v) => v,
-        None => return Err(error(ErrorCode::MeshError)),
+        None => return Err(FemError::MeshError),
     };
     let mut fem: fem::FEM = fem::FEM::new(mesh_name)?;
 
@@ -66,13 +57,13 @@ pub fn read_json(file_name: &str) -> Result<(), Error> {
     fem.set_thickness(thickness);
     let ym = match v["YoungModulus"].as_f64() {
         Some(v) => v,
-        None => return Err(error(ErrorCode::YoungModulusError)),
+        None => return Err(FemError::YoungModulusError),
     };
     fem.set_young_modulus(ym);
     if fem.is_2d() || fem.is_3d() {
         let pr = match v["PoissonRatio"].as_f64() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::PoissonRatioError)),
+            None => return Err(FemError::PoissonRatioError),
         };
         fem.set_poisons_ratio(pr);
     }
@@ -81,11 +72,11 @@ pub fn read_json(file_name: &str) -> Result<(), Error> {
         let direct = get_json_direct("BoundaryConditions", &v, i)?;
         let value: &str = match v["BoundaryConditions"][i]["Value"].as_str() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::ValueError)),
+            None => return Err(FemError::ValueError),
         };
         let predicate: &str = match v["BoundaryConditions"][i]["Predicate"].as_str() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::PredicateError)),
+            None => return Err(FemError::PredicateError),
         };
         fem.add_boundary_condition(value, predicate, direct);
     }
@@ -94,11 +85,11 @@ pub fn read_json(file_name: &str) -> Result<(), Error> {
         let direct = get_json_direct("VolumeLoad", &v, i)?;
         let value: &str = match v["VolumeLoad"][i]["Value"].as_str() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::ValueError)),
+            None => return Err(FemError::ValueError),
         };
         let predicate: &str = match v["VolumeLoad"][i]["Predicate"].as_str() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::PredicateError)),
+            None => return Err(FemError::PredicateError),
         };
         fem.add_volume_load(value, predicate, direct);
     }
@@ -107,11 +98,11 @@ pub fn read_json(file_name: &str) -> Result<(), Error> {
         let direct = get_json_direct("ConcentratedLoad", &v, i)?;
         let value: &str = match v["ConcentratedLoad"][i]["Value"].as_str() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::ValueError)),
+            None => return Err(FemError::ValueError),
         };
         let predicate: &str = match v["ConcentratedLoad"][i]["Predicate"].as_str() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::PredicateError)),
+            None => return Err(FemError::PredicateError),
         };
         fem.add_concentrated_load(value, predicate, direct);
     }
@@ -120,11 +111,11 @@ pub fn read_json(file_name: &str) -> Result<(), Error> {
         let direct = get_json_direct("SurfaceLoad", &v, i)?;
         let value: &str = match v["SurfaceLoad"][i]["Value"].as_str() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::ValueError)),
+            None => return Err(FemError::ValueError),
         };
         let predicate: &str = match v["SurfaceLoad"][i]["Predicate"].as_str() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::PredicateError)),
+            None => return Err(FemError::PredicateError),
         };
         fem.add_surface_load(value, predicate, direct);
     }
@@ -132,28 +123,28 @@ pub fn read_json(file_name: &str) -> Result<(), Error> {
     for i in 0..v["PressureLoad"].len() {
         let value: &str = match v["PressureLoad"][i]["Value"].as_str() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::ValueError)),
+            None => return Err(FemError::ValueError),
         };
         let predicate: &str = match v["PressureLoad"][i]["Predicate"].as_str() {
             Some(v) => v,
-            None => return Err(error(ErrorCode::PredicateError)),
+            None => return Err(FemError::PredicateError),
         };
         fem.add_pressure_load(value, predicate);
     }
 
     let res_name = match v["Result"].as_str() {
         Some(v) => v,
-        None => return Err(error(ErrorCode::ResultError)),
+        None => return Err(FemError::ResultError),
     };
     fem.generate(res_name)
 }
 
 #[allow(dead_code)]
-fn get_json_direct<'a>(name: &'a str, v: &json::JsonValue, i: usize) -> Result<Direct, Error> {
+fn get_json_direct<'a>(name: &'a str, v: &json::JsonValue, i: usize) -> Result<Direct, FemError> {
     let mut direct: Option<Direct> = None;
     let direct_str = match v[name][i]["Direct"].as_str() {
         Some(v) => v,
-        None => return Err(error(ErrorCode::DirectError)),    
+        None => return Err(FemError::DirectError),    
     };
     if direct_str.contains("X") {
         direct = Some(Direct::X);
@@ -166,6 +157,6 @@ fn get_json_direct<'a>(name: &'a str, v: &json::JsonValue, i: usize) -> Result<D
     }
     match direct {
         Some(v) => Ok(v),
-        None => Err(error(ErrorCode::IncorrectDirectError)),
+        None => Err(FemError::IncorrectDirectError),
     }
 }

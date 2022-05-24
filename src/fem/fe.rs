@@ -2,7 +2,7 @@
 use std::fmt;
 use ndarray::prelude::*;
 use super::util;
-use super::error::Error;
+use super::error::FemError;
 
 // Типы конечных элементов (КЭ)
 #[derive(Copy, Clone, PartialEq)]
@@ -38,7 +38,7 @@ pub trait FiniteElement {
     fn x(&self, i: usize, j: usize) -> f64;
     fn w(&self) -> Array1<f64>;
     fn e(&self) -> Array1<f64>;
-    fn create(&self) -> Result<Array2<f64>, Error> {
+    fn create(&self) -> Result<Array2<f64>, FemError> {
         let mut a: Array2<f64> = Array2::zeros((self.size(), self.size()));
         let mut b: Array1<f64> = Array1::zeros(self.size());
         let mut c: Array2<f64> = Array2::zeros((self.size(), self.size()));
@@ -60,7 +60,7 @@ pub trait FiniteElement {
 
 
 pub mod fe1d {
-    use super::Error; 
+    use super::FemError; 
     use super::FiniteElement;
     use ndarray::prelude::*;
     use crate::fem::util;
@@ -81,7 +81,7 @@ pub mod fe1d {
         }
         fn dx(&self, c: &Array2<f64>, i: usize) -> f64;
         fn dxi(&self, i: usize, j: usize) -> f64;
-        fn generate(&mut self) -> Result<Array2<f64>, Error> {
+        fn generate(&mut self) -> Result<Array2<f64>, FemError> {
             // self.create()?;
             let size = self.size() * self.freedom();
             let mut local: Array2<f64> = Array2::zeros((size , size));
@@ -97,7 +97,7 @@ pub mod fe1d {
             }
             Ok(local)
         }
-        fn calc(&self, u: &Array1<f64>) -> Result<Array2<f64>, Error> {
+        fn calc(&self, u: &Array1<f64>) -> Result<Array2<f64>, FemError> {
             let c = self.create()?;
             // println!("\n{:?}", c);
             let mut res: Array2<f64> = Array2::zeros((2, self.size()));
@@ -159,7 +159,7 @@ pub mod fe1d {
 }
 
 pub mod fe2d {
-    use super::Error; 
+    use super::FemError; 
     use super::FiniteElement;
     use ndarray::prelude::*;
     use crate::fem::util;
@@ -208,7 +208,7 @@ pub mod fe2d {
             }
             res
         }
-        fn generate(&mut self) -> Result<Array2<f64>, Error> {
+        fn generate(&mut self) -> Result<Array2<f64>, FemError> {
             let size = self.size() * self.freedom();
             let mut local: Array2<f64> = Array2::zeros((size , size));
             for i in 0..self.w().len() {
@@ -268,7 +268,7 @@ pub mod fe2d {
             // println!("\n{:?}", local);
             Ok(local)
         }
-        fn calc(&self, u: &Array1<f64>) -> Result<Array2<f64>, Error> {
+        fn calc(&self, u: &Array1<f64>) -> Result<Array2<f64>, FemError> {
             let c = self.create()?;
             let mut res: Array2<f64> = Array2::zeros((if self.is_shell() { 12 } else { 6 }, self.size() * self.freedom()));
             if !self.is_shell() {
@@ -486,7 +486,7 @@ pub mod fe2d {
 }
 
 pub mod fe3d {
-    use super::Error; 
+    use super::FemError; 
     use super::FiniteElement;
     use ndarray::prelude::*;
     use crate::fem::util;
@@ -529,7 +529,7 @@ pub mod fe3d {
                 [ 0.0, 0.0, 0.0, 0.0, 0.5 * (1.0 - 2.0 * m) / (1.0 - m) * e * (1.0 - m) / (1.0 + m) / (1.0 - 2.0 * m), 0.0 ],
                 [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.5 * (1.0 - 2.0 * m) / (1.0 - m) * e * (1.0 - m) / (1.0 + m) / (1.0 - 2.0 * m)]]
         }
-        fn generate(&mut self) -> Result<Array2<f64>, Error> {
+        fn generate(&mut self) -> Result<Array2<f64>, FemError> {
             // self.create()?;
             let size = self.size() * self.freedom();
             let mut local: Array2<f64> = Array2::zeros((size , size));
@@ -554,7 +554,7 @@ pub mod fe3d {
             }
             Ok(local)
         }
-        fn calc(&self, u: &Array1<f64>) -> Result<Array2<f64>, Error> {
+        fn calc(&self, u: &Array1<f64>) -> Result<Array2<f64>, FemError> {
             let c = self.create()?;
             let mut res: Array2<f64> = Array2::zeros((12, self.size() * self.freedom()));
             for i in 0..self.size() {

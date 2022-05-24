@@ -4,7 +4,7 @@ use std::fs::OpenOptions;
 use std::io::{BufReader, BufWriter, prelude::*};
 use ndarray::prelude::*;
 use super::fe::FEType;
-use super::error::{ErrorCode, Error, error};
+use super::error::FemError;
 use super::msg::Messenger;
 use super::util;
 
@@ -21,7 +21,7 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn new(file_name: &str) -> Result<Self, Error> {
+    pub fn new(file_name: &str) -> Result<Self, FemError> {
         let freedom: usize;
         let num_vertex: usize;
         let num_fe: usize;
@@ -30,15 +30,12 @@ impl Mesh {
         let fe_size;
         let be_size;
         let dim;
-        let file = match OpenOptions::new()
+        let file = OpenOptions::new()
                 .read(true)
                 .write(true)
                 .append(true)
                 .create_new(false)
-                .open(file_name) {
-            Err(_) => return Err(error(ErrorCode::OpenFile)),
-            Ok(file) => file,
-        };
+                .open(file_name)?;
         let mut reader = BufReader::new(&file);
         // Обработка типа КЭ
         let mut val = util::get_line(&mut reader)?;
@@ -92,63 +89,42 @@ impl Mesh {
                 be_size = 0;
                 freedom = 6;
             }
-            _ => return Err(error(ErrorCode::InvalidFEType)),
+            _ => return Err(FemError::InvalidFEType),
         }
         // Считывание количества узлов
         val = util::get_line(&mut reader)?;
-        num_vertex = match val.trim().parse() {
-            Err(_) => return Err(error(ErrorCode::InvalidNumber)),
-            Ok(num_vertex) => num_vertex,
-        };
+        num_vertex = val.trim().parse()?;
         let mut x: Array2<f64> = Array2::zeros((num_vertex, dim));
         // Считывание узлов
         for i in 0..num_vertex {
             val = util::get_line(&mut reader)?;
             let ls = val.trim().split_whitespace();
             for (j, it) in ls.enumerate() {
-                let val: f64 = match it.parse() {
-                    Err(_) => return Err(error(ErrorCode::InvalidNumber)), 
-                    Ok(val) => val,
-                };
-                x[[i, j]] = val;
+                x[[i, j]] = it.parse()?;
             }
         }
         // Считывание количества КЭ
         val = util::get_line(&mut reader)?;
-        num_fe = match val.trim().parse() {
-            Err(_) => return Err(error(ErrorCode::InvalidNumber)),
-            Ok(num_fe) => num_fe,
-        };
+        num_fe = val.trim().parse()?;
         let mut fe: Array2<usize> = Array2::zeros((num_fe, fe_size));
         // Считывание КЭ
         for i in 0..num_fe {
             val = util::get_line(&mut reader)?;
             let ls = val.trim().split_whitespace();
             for (j, it) in ls.enumerate() {
-                let val: usize = match it.parse() {
-                    Err(_) => return Err(error(ErrorCode::InvalidNumber)), 
-                    Ok(val) => val,
-                };
-                fe[[i, j]] = val;
+                fe[[i, j]] = it.parse()?;
             }
         }
         // Считывание количества ГЭ
         val = util::get_line(&mut reader)?;
-        num_be = match val.trim().parse() {
-            Err(_) => return Err(error(ErrorCode::InvalidNumber)),
-            Ok(num_be) => num_be,
-        };
+        num_be = val.trim().parse()?;
         let mut be: Array2<usize> = Array2::zeros((num_be, be_size));
         // Считывание ГЭ
         for i in 0..num_be {
             val = util::get_line(&mut reader)?;
             let ls = val.trim().split_whitespace();
             for (j, it) in ls.enumerate() {
-                let val: usize = match it.parse() {
-                    Err(_) => return Err(error(ErrorCode::InvalidNumber)), 
-                    Ok(val) => val,
-                };
-                be[[i, j]] = val;
+                be[[i, j]] = it.parse()?;
             }
         }
         if fe_type == FEType::FE2D3S || fe_type == FEType::FE2D4S {
@@ -162,21 +138,14 @@ impl Mesh {
             // Если информации о связях в файле нет, создаем и записываем ее туда 
             let mut writer = BufWriter::new(file);
             mesh_map = Mesh::create_mesh_map(num_vertex, &fe);
-            // if !writer.write(format!("map\n").as_bytes()).is_ok() {
-            //     return Err(Error::WriteFile);
-            // }
             for row in &mesh_map {
                 for elem in row {
-                    if !writer.write(format!("{} ", elem).as_bytes()).is_ok() {
-                        return Err(error(ErrorCode::WriteFile));
-                    }
+                    writer.write(format!("{} ", elem).as_bytes())?;
                 }
-                if !writer.write(format!("\n").as_bytes()).is_ok() {
-                    return Err(error(ErrorCode::WriteFile));
-                }
+                writer.write(format!("\n").as_bytes())?;
             }
             if writer.flush().is_err() {
-                return Err(error(ErrorCode::WriteFile));
+                return Err(FemError::WriteFile);
             }
         } else {
             mesh_map = vec![vec![]; num_vertex];
@@ -186,11 +155,7 @@ impl Mesh {
                 }
                 let ls = val.trim().split_whitespace();
                 for (_, it) in ls.enumerate() {
-                    let val: usize = match it.parse() {
-                        Err(_) => return Err(error(ErrorCode::InvalidNumber)), 
-                        Ok(val) => val,
-                    };
-                    mesh_map[i].push(val);
+                    mesh_map[i].push(it.parse()?);
                 }
             }
         }

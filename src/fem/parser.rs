@@ -1,4 +1,4 @@
-use super::error::{ErrorCode, Error, error};
+use super::error::FemError;
 use std::ptr;
 
 #[derive(Copy, Clone, PartialEq)]
@@ -66,7 +66,7 @@ impl Node {
     fn binary(l: Node, t: Token, r: Node) -> Self {
         Self{ val: 0.0, p_val: ptr::null_mut(), tok: Some(t), children: vec![l, r] }
     }
-    fn value(&mut self) -> Result<f64, Error> {
+    fn value(&mut self) -> Result<f64, FemError> {
         match self.tok {
             Some(Token::Number) => if self.p_val == ptr::null_mut() { Ok(self.val) } else { unsafe { Ok(*self.p_val) } }
             Some(Token::Plus) => if self.children.len() == 1 { Ok(self.children[0].value()?) } else { Ok(self.children[0].value()? + self.children[1].value()?) }
@@ -95,7 +95,7 @@ impl Node {
             Some(Token::Lt) => if self.children[0].value()? < self.children[1].value()? { Ok(1.0) } else { Ok(0.0) }
             Some(Token::Ge) => if self.children[0].value()? >= self.children[1].value()? { Ok(1.0) } else { Ok(0.0) }
             Some(Token::Gt) => if self.children[0].value()? > self.children[1].value()? { Ok(1.0) } else { Ok(0.0) }
-            _ => Err(error(ErrorCode::InternalError)),
+            _ => Err(FemError::InternalError),
         }
     }
 }
@@ -123,7 +123,7 @@ impl<'a> Parser<'a> {
             token_type: None, 
         }
     }
-    pub fn set_expression(&mut self, exp: &str) -> Result<(), Error> {
+    pub fn set_expression(&mut self, exp: &str) -> Result<(), FemError> {
         self.expression = exp.chars().collect();
         self.compile()
     }
@@ -136,7 +136,7 @@ impl<'a> Parser<'a> {
         }
         self.variables.push((name, value));
     }
-    fn compile(&mut self) -> Result<(), Error> {
+    fn compile(&mut self) -> Result<(), FemError> {
         self.index = 0;
         self.tok = None;
         self.token_type = None;
@@ -147,15 +147,15 @@ impl<'a> Parser<'a> {
             self.result = self.get_exp()?;
             if self.token_type == Some(TokenType::Delimiter) {
                 if self.tok == Some(Token::Rb) {
-                    return Err(error(ErrorCode::BracketError))
+                    return Err(FemError::BracketError);
                 } else {
-                    return Err(error(ErrorCode::SyntaxError))
+                    return Err(FemError::SyntaxError);
                 }
             }
         }
         Ok(())
     }
-    pub fn value(&mut self) -> Result<f64, Error> {
+    pub fn value(&mut self) -> Result<f64, FemError> {
         self.result.value()
     }
     fn is_expression(&self) -> bool {
@@ -164,7 +164,7 @@ impl<'a> Parser<'a> {
         }   
         false 
     }
-    fn get_token(&mut self) -> Result<Option<TokenType>, Error> {
+    fn get_token(&mut self) -> Result<Option<TokenType>, FemError> {
         self.token = String::new();
         self.token_type = None;
         self.tok = None;
@@ -190,7 +190,7 @@ impl<'a> Parser<'a> {
                 self.index += 1;
             }
             if !self.find_delimiter() {
-                return Err(error(ErrorCode::SyntaxError));       
+                return Err(FemError::SyntaxError);       
             }
             self.token_type = Some(TokenType::Delimiter);
             return Ok(self.token_type)
@@ -220,7 +220,7 @@ impl<'a> Parser<'a> {
                         self.index += 1
                     }
                 } else {
-                    return Err(error(ErrorCode::InvalidNumber));   
+                    return Err(FemError::InvalidNumber);   
                 }
             }
             self.token_type = Some(TokenType::Numeric);
@@ -236,13 +236,13 @@ impl<'a> Parser<'a> {
             if !self.find_delimiter() {
                 if !self.find_variable() {
                     if !self.find_function() {
-                        return Err(error(ErrorCode::UndefError));
+                        return Err(FemError::UndefError);
                     }
                 }
             }   
             return Ok(self.token_type);
         }
-        Err(error(ErrorCode::SyntaxError))
+        Err(FemError::SyntaxError)
     }
     fn find_delimiter(&mut self) -> bool {
         self.tok = match &self.token[..] {
@@ -297,11 +297,11 @@ impl<'a> Parser<'a> {
         }
         res
     }
-    fn get_exp(&mut self) -> Result<Node, Error> {
+    fn get_exp(&mut self) -> Result<Node, FemError> {
         self.get_token()?;
         self.token_or()
     }
-    fn token_or(&mut self) -> Result<Node, Error> {
+    fn token_or(&mut self) -> Result<Node, FemError> {
         let mut res = self.token_and()?;
         while self.token_type != Some(TokenType::Finished) && self.tok == Some(Token::Or) {
             self.get_token()?;
@@ -310,7 +310,7 @@ impl<'a> Parser<'a> {
         }
         Ok(res)   
     }
-    fn token_and(&mut self) -> Result<Node, Error> {
+    fn token_and(&mut self) -> Result<Node, FemError> {
         let mut res = self.token_not()?;
         while self.token_type != Some(TokenType::Finished) && self.tok == Some(Token::And) {
             self.get_token()?;
@@ -319,7 +319,7 @@ impl<'a> Parser<'a> {
         }
         Ok(res)   
     }
-    fn token_not(&mut self) -> Result<Node, Error> {
+    fn token_not(&mut self) -> Result<Node, FemError> {
         let op: Option<Token> = if self.tok == Some(Token::Not) { Some(Token::Not) } else { None }; 
         if self.token_type != Some(TokenType::Finished) && self.tok == Some(Token::Not) {
             self.get_token()?;    
@@ -330,7 +330,7 @@ impl<'a> Parser<'a> {
         } 
         Ok(res)   
     }
-    fn token_add(&mut self) -> Result<Node, Error> {
+    fn token_add(&mut self) -> Result<Node, FemError> {
         let mut res = self.token_mul()?;
         while self.token_type != Some(TokenType::Finished) && (self.tok == Some(Token::Plus) || 
             self.tok == Some(Token::Minus) || self.tok == Some(Token::Gt) || self.tok == Some(Token::Ge) || 
@@ -343,7 +343,7 @@ impl<'a> Parser<'a> {
         }
         Ok(res)   
     }
-    fn token_mul(&mut self) -> Result<Node, Error> {
+    fn token_mul(&mut self) -> Result<Node, FemError> {
         let mut res = self.token_pow()?;
         while self.token_type != Some(TokenType::Finished) && (self.tok == Some(Token::Mul) || self.tok == Some(Token::Div)) {
             let op: Token = if self.tok == Some(Token::Mul) { Token::Mul } else { Token::Div }; 
@@ -353,7 +353,7 @@ impl<'a> Parser<'a> {
         }
         Ok(res)   
     }
-    fn token_pow(&mut self) -> Result<Node, Error> {
+    fn token_pow(&mut self) -> Result<Node, FemError> {
         let mut res = self.token_un()?;
         if self.token_type != Some(TokenType::Finished) && self.tok == Some(Token::Pow) {
             self.get_token()?;
@@ -362,7 +362,7 @@ impl<'a> Parser<'a> {
         }
         Ok(res)   
     }
-    fn token_un(&mut self) -> Result<Node, Error> {
+    fn token_un(&mut self) -> Result<Node, FemError> {
         let op: Option<Token> = if self.tok == Some(Token::Plus) { Some(Token::Plus) } else { if self.tok == Some(Token::Minus) { Some(Token::Minus) } else { None } };
         if self.token_type == Some(TokenType::Delimiter) && (self.tok == Some(Token::Plus) || self.tok == Some(Token::Minus)) {
             self.get_token()?;
@@ -373,13 +373,13 @@ impl<'a> Parser<'a> {
         }
         Ok(res)
     }
-    fn token_bracket(&mut self) -> Result<Node, Error> {
+    fn token_bracket(&mut self) -> Result<Node, FemError> {
         let res;
         if self.tok == Some(Token::Lb) && self.token_type == Some(TokenType::Delimiter) {
             self.get_token()?;
             res = self.token_or()?;
             if self.tok != Some(Token::Rb) {
-                return Err(error(ErrorCode::SyntaxError));
+                return Err(FemError::SyntaxError);
             }
             self.get_token()?;
         } else {
@@ -387,9 +387,9 @@ impl<'a> Parser<'a> {
         }
         Ok(res)
     }
-    fn token_prim(&mut self) -> Result<Node, Error> {
+    fn token_prim(&mut self) -> Result<Node, FemError> {
         let mut is_find = false;
-        let mut res = Err(error(ErrorCode::SyntaxError));
+        let mut res = Err(FemError::SyntaxError);
         match self.token_type {
             Some(TokenType::Numeric) => {
                 res = Ok(Node::double(self.token.parse().unwrap()));
@@ -405,27 +405,27 @@ impl<'a> Parser<'a> {
                     }
                 }
                 if !is_find {
-                    res = Err(error(ErrorCode::UndefError));
+                    res = Err(FemError::UndefError);
                 }
             }
             Some(TokenType::Function) => res = Ok(self.token_func()?),
-            _ => res = Err(error(ErrorCode::SyntaxError)),
+            _ => res = Err(FemError::SyntaxError),
         }
         //self.get_token()?;
         res
     }
-    fn token_func(&mut self) -> Result<Node, Error> {
+    fn token_func(&mut self) -> Result<Node, FemError> {
         let mut res;
         let fun_tok = self.tok.unwrap();
         self.get_token()?;
         if self.token.len() == 0 || self.tok != Some(Token::Lb) {
-            return Err(error(ErrorCode::SyntaxError));
+            return Err(FemError::SyntaxError);
         }
         self.get_token()?;
         res = self.token_add()?;
         res = Node::unary(fun_tok, res);
         if self.tok != Some(Token::Rb) {
-            return Err(error(ErrorCode::SyntaxError));     
+            return Err(FemError::SyntaxError);     
         }
         self.get_token()?;
         Ok(res)

@@ -2,12 +2,12 @@
 use std::io::prelude::*;
 use std::str;
 use ndarray::prelude::*;
-use super::error::{ErrorCode, Error, error};
+use super::error::FemError;
 
 
 #[allow(dead_code)]
 // Решение СЛАУ методом Гаусса
-pub fn solve(a: &mut Array2<f64>, b: &mut Array1<f64>, eps: f64) -> Result<Array1<f64>, Error> {
+pub fn solve(a: &mut Array2<f64>, b: &mut Array1<f64>, eps: f64) -> Result<Array1<f64>, FemError> {
     let n = a.shape()[0];
     for i in 0..n - 1 {
         if a[[i, i]].abs() < eps {
@@ -34,7 +34,7 @@ pub fn solve(a: &mut Array2<f64>, b: &mut Array1<f64>, eps: f64) -> Result<Array
         }
     }
     if a[[n - 1, n - 1]].abs() < eps {
-        return Err(Error::new(ErrorCode::SingularMatrix));   
+        return Err(FemError::SingularMatrix);   
     }
     let mut x: Array1<f64> = Array1::zeros(n);
     x[n - 1] = b[n - 1] / a[[n - 1, n - 1]];
@@ -49,7 +49,7 @@ pub fn solve(a: &mut Array2<f64>, b: &mut Array1<f64>, eps: f64) -> Result<Array
 }
 
 // Обратная матрица
-pub fn inv(m: &Array2<f64>) -> Result<Array2<f64>, Error> {
+pub fn inv(m: &Array2<f64>) -> Result<Array2<f64>, FemError> {
     let ret;
     if m.shape()[0] == 1 && m.shape()[1] == 1 {
         ret = array![[1.0 / m[[0, 0]]]];
@@ -60,13 +60,13 @@ pub fn inv(m: &Array2<f64>) -> Result<Array2<f64>, Error> {
                     [m[[1, 2]] * m[[2, 0]] - m[[1, 0]] * m[[2, 2]], m[[0, 0]] * m[[2, 2]] - m[[0, 2]] * m[[2, 0]], m[[0, 2]] * m[[1, 0]] - m[[0, 0]] * m[[1, 2]]], 
                     [m[[1, 0]] * m[[2, 1]] - m[[1, 1]] * m[[2, 0]], m[[0, 1]] * m[[2, 0]] - m[[0, 0]] * m[[2, 1]], m[[0, 0]] * m[[1, 1]] - m[[0, 1]] * m[[1, 0]]]] / det(m)?;
     } else {
-        return Err(error(ErrorCode::InverseMatrix));
+        return Err(FemError::InverseMatrix);
     }
     Ok(ret)
 }
 
 // Определитель матрицы
-pub fn det(m: &Array2<f64>) -> Result<f64, Error> {
+pub fn det(m: &Array2<f64>) -> Result<f64, FemError> {
     let ret;
     if m.shape()[0] == 1 && m.shape()[1] == 1 {
         ret = m[[0, 0]];
@@ -76,7 +76,7 @@ pub fn det(m: &Array2<f64>) -> Result<f64, Error> {
         ret = m[[0, 0]] * m[[1, 1]] * m[[2, 2]] + m[[0, 1]] * m[[1, 2]] * m[[2, 0]] + m[[0, 2]] * m[[1, 0]] * m[[2, 1]] -
                 m[[0, 2]] * m[[1, 1]] * m[[2, 0]] - m[[0, 0]] * m[[1, 2]] * m[[2, 1]] - m[[0, 1]] * m[[1, 0]] * m[[2, 2]];
     } else {
-        return Err(error(ErrorCode::DeterminantMatrix));
+        return Err(FemError::DeterminantMatrix);
     }
     Ok(ret)
 }
@@ -170,12 +170,12 @@ pub fn create_ext_transform_matrix(v: &Array2<f64>, size: usize, freedom: usize)
 }
 
 // Чтение первой непустой строки из файла
-pub fn get_line<R: BufRead>(reader: &mut R) -> Result<String, Error> {
+pub fn get_line<R: BufRead>(reader: &mut R) -> Result<String, FemError> {
     let mut res;
     let mut bytes: Vec<u8> = Vec::new();
     loop {
         let len = match reader.read_until(b'\n', &mut bytes) {
-            Err(_) => return Err(error(ErrorCode::ReadFile)),
+            Err(_) => return Err(FemError::ReadFile),
             Ok(len) => len,
         };
         if len == 0 {
@@ -183,7 +183,7 @@ pub fn get_line<R: BufRead>(reader: &mut R) -> Result<String, Error> {
         }
         res = match str::from_utf8(&bytes) {
             Ok(res) => res,
-            Err(_) => return Err(error(ErrorCode::InvalidNumber)),
+            Err(_) => return Err(FemError::InvalidNumber),
         };
         if res.trim().len() > 0 {
             break;
