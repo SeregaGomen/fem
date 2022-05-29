@@ -324,18 +324,26 @@ impl<'a> Parser<'a> {
         if self.token_type != Some(TokenType::Finished) && self.tok == Some(Token::Not) {
             self.get_token()?;    
         }
-        let mut res = self.token_add()?;
+        let mut res = self.token_eq()?;
         if op == Some(Token::Not) {
             res = Node::unary(Token::Not, res);
         } 
         Ok(res)   
     }
+    fn token_eq(&mut self) -> Result<Node, FemError> {
+        let mut res = self.token_add()?;
+        while self.token_type != Some(TokenType::Finished) && (self.tok == Some(Token::Gt) || self.tok == Some(Token::Ge) || 
+            self.tok == Some(Token::Lt) || self.tok == Some(Token::Le) || self.tok == Some(Token::Eq) || self.tok == Some(Token::Ne)) {
+            let op = self.tok.unwrap(); 
+            self.get_token()?;
+            let hold = self.token_add()?;
+            res = Node::binary(res, op, hold);
+        }
+        Ok(res)   
+    }
     fn token_add(&mut self) -> Result<Node, FemError> {
         let mut res = self.token_mul()?;
-        while self.token_type != Some(TokenType::Finished) && (self.tok == Some(Token::Plus) || 
-            self.tok == Some(Token::Minus) || self.tok == Some(Token::Gt) || self.tok == Some(Token::Ge) || 
-            self.tok == Some(Token::Lt) || self.tok == Some(Token::Le) || self.tok == Some(Token::Eq) || 
-            self.tok == Some(Token::Ne)) {
+        while self.token_type != Some(TokenType::Finished) && (self.tok == Some(Token::Plus) || self.tok == Some(Token::Minus)) {
             let op = self.tok.unwrap(); 
             self.get_token()?;
             let hold = self.token_mul()?;
