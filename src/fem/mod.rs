@@ -8,7 +8,7 @@ mod parser;
 mod msg;
 
 use rayon::prelude::*;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use bitflags::bitflags;
 use ndarray::{Array1, Array2, prelude::*};
 use std::time::Instant;
@@ -184,7 +184,7 @@ impl<'a> FEM<'a> {
         Ok(())
     }
     fn set_global_matrix(&self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
-        let msg = Arc::new(Mutex::new(Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5)));
+        let msg = Mutex::new(Messenger::new("Generate global stiffness matrix", 1, self.mesh.num_fe as i64, 5));
         (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
             msg.lock().unwrap().add_progress();
             let fe = self.calc_fe_matrix(i)?;
@@ -239,7 +239,7 @@ impl<'a> FEM<'a> {
             }
         }
         // Вычисление деформаций, напряжений, ...
-        let msg = Arc::new(Mutex::new(Messenger::new("Calculation of standard finite element results", 1, self.mesh.num_fe as i64, 5)));
+        let msg = Mutex::new(Messenger::new("Calculation of standard finite element results", 1, self.mesh.num_fe as i64, 5));
         (0..self.mesh.num_fe).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
             msg.lock().unwrap().add_progress();
             // Формируем вектор перемещений для текущего КЭ
