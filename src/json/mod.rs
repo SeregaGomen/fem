@@ -1,11 +1,7 @@
 use json;
-use crate::fem;
 use std::fs;
-//use super::error::{ErrorCode, Error, error};
-// use crate::{fem::Direct, fem::error::{ErrorCode, Error, error}};
-use crate::fem::Direct;
-use crate::fem::error::FemError;
-
+use crate::fem::{Direct, FEM, FEMParameter, error::FemError};
+use crate::fem::mesh::Mesh;
 
 ///! {
 ///!     "Mesh": "/home/serg/work/python/pyfem/mesh/cube.trpa",
@@ -38,34 +34,35 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
         Some(v) => v,
         None => return Err(FemError::MeshError),
     };
-    let mut fem: fem::FEM = fem::FEM::new(mesh_name)?;
+    let mesh = Mesh::new(mesh_name)?;
+    let mut param = FEMParameter::new();
 
     let eps = match v["Eps"].as_f64() {
         Some(v) => v,
         None => 1.0e-6,
     };
-    fem.set_eps(eps);
+    param.set_eps(eps);
     let nthreads = match v["Threads"].as_u32() {
         Some(v) => v,
         None => 1,
     };
-    fem.set_num_threads(nthreads as usize);
+    param.set_num_threads(nthreads as usize);
     let thickness = match v["Thickness"].as_f64() {
         Some(v) => v,
         None => 1.0,
     };
-    fem.set_thickness(thickness);
+    param.set_thickness(thickness);
     let ym = match v["YoungModulus"].as_f64() {
         Some(v) => v,
         None => return Err(FemError::YoungModulusError),
     };
-    fem.set_young_modulus(ym);
-    if fem.is_2d() || fem.is_3d() {
+    param.set_young_modulus(ym);
+    if mesh.is_2d() || mesh.is_3d() {
         let pr = match v["PoissonRatio"].as_f64() {
             Some(v) => v,
             None => return Err(FemError::PoissonRatioError),
         };
-        fem.set_poisons_ratio(pr);
+        param.set_poisons_ratio(pr);
     }
 
     for i in 0..v["BoundaryConditions"].len() {
@@ -78,7 +75,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        fem.add_boundary_condition(value, predicate, direct);
+        param.add_boundary_condition(value, predicate, direct);
     }
 
     for i in 0..v["VolumeLoad"].len() {
@@ -91,7 +88,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        fem.add_volume_load(value, predicate, direct);
+        param.add_volume_load(value, predicate, direct);
     }
 
     for i in 0..v["ConcentratedLoad"].len() {
@@ -104,7 +101,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        fem.add_concentrated_load(value, predicate, direct);
+        param.add_concentrated_load(value, predicate, direct);
     }
 
     for i in 0..v["SurfaceLoad"].len() {
@@ -117,7 +114,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        fem.add_surface_load(value, predicate, direct);
+        param.add_surface_load(value, predicate, direct);
     }
 
     for i in 0..v["PressureLoad"].len() {
@@ -129,13 +126,14 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        fem.add_pressure_load(value, predicate);
+        param.add_pressure_load(value, predicate);
     }
 
     let res_name = match v["Result"].as_str() {
         Some(v) => v,
         None => return Err(FemError::ResultError),
     };
+    let mut fem = FEM::new(&mesh, &param);
     fem.generate(res_name)
 }
 

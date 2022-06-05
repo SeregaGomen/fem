@@ -1,19 +1,16 @@
 extern crate json;
-
+use std::env;
 use fem::json::read_json; 
 
 fn main() {
-    use std::env;
-
     let args: Vec<String> = env::args().collect();
-    
+   
     if args.len() < 2 {
         println!("Too few parameters!");
-        return;
+    } else {
+        if let Err(e) = read_json(args[1].as_str()) {
+            println!("Error: {}", e);
+        }
     }
-    match read_json(args[1].as_str()) {
-         Ok(_) => println!("Done"),
-         Err(e) => println!("Error: {}", e),
-    };
 }
 
