@@ -7,6 +7,7 @@ mod solver;
 mod parser;
 mod msg;
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
 use bitflags::bitflags;
@@ -29,26 +30,19 @@ bitflags! {
     }
 }
 
-fn check_elem(x: &Array2<f64>, param: &Parameter) -> Result<bool, FemError> {
-    for i in 0..x.shape()[0] {
-        if param.get_predicate(&x.row(i))? == false {
-            return Ok(false);
-        }
-    }
-    Ok(true)
-}
-
-
 #[derive(PartialEq)]
-enum ParamType {
+pub enum ParamType {
     BoundaryCondition,  // Граничное условие, заданноe выражением
     VolumeLoad,         // Объемная нагрузка
     SurfaceLoad,        // Поверхностная ...
     ConcentratedLoad,   // Сосредоточенная ...
     PressureLoad,       // Нагрузка давлением
+    Thickness,          // Толщина (сечение) элемента
+    YoungModulus,       // Модуль Юнга
+    PoissonsRatio,      // Коэффициент Пуассона
 }
 
-struct Parameter<'a> {
+pub struct Parameter<'a> {
     p_type: ParamType,
     value: &'a str,
     predicate: &'a str,
@@ -64,13 +58,16 @@ impl<'a> Parameter<'a> {
     fn new_fun(p_type: ParamType, value_f: fn(f64, f64, f64) -> f64, predicate_f: fn(f64, f64, f64) -> bool, direct: Direct) -> Self {
         Self { p_type, value: "", predicate: "", value_fun: Some(value_f), predicate_fun: Some(predicate_f), direct }
     }
-    fn get_value(&self, x: &ArrayView1<f64>) -> Result<f64, FemError> {
+    fn get_value(&self, x: &ArrayView1<f64>, variables: &HashMap<&'a str, f64>) -> Result<f64, FemError> {
         match self.value_fun {
             None => {
-                let var_name = array!["x", "y", "shell-tube-3z"];
+                let var_name = ["x", "y", "z"];
                 let mut parser = Parser::new();
                 for i in 0..x.len() {
                     parser.set_variable(var_name[i], x[i]);    
+                }
+                for i in variables {
+                    parser.set_variable(i.0, *i.1);    
                 }
                 parser.set_expression(&self.value)?;
                 parser.value()
@@ -78,16 +75,19 @@ impl<'a> Parameter<'a> {
             Some(fun) => Ok(fun(x[0], if x.len() > 1 { x[1] } else { 0. }, if x.len() > 2 { x[2] } else { 0. } )),
         }
     }
-    fn get_predicate(&self, x: &ArrayView1<f64>) -> Result<bool, FemError> {
+    fn get_predicate(&self, x: &ArrayView1<f64>, variables: &HashMap<&'a str, f64>) -> Result<bool, FemError> {
         match self.predicate_fun {
             None => {
                 if self.predicate.len() == 0 {
                     Ok(true)
                 } else {
-                    let var_name = array!["x", "y", "z"];
+                    let var_name = ["x", "y", "z"];
                     let mut parser = Parser::new();
                     for i in 0..x.len() {
                         parser.set_variable(var_name[i], x[i]);    
+                    }
+                    for i in variables {
+                        parser.set_variable(i.0, *i.1);    
                     }
                     parser.set_expression(&self.predicate)?;
                     if parser.value()? == 1. { Ok(true) } else { Ok(false) }
@@ -100,15 +100,14 @@ impl<'a> Parameter<'a> {
 
 pub struct FEMParameter<'a> {
     param: Vec<Parameter<'a>>,
-    e: [f64; 2],
-    thk: f64,
     eps: f64,
     nthreads: usize,
+    variables: HashMap<&'a str, f64>,
 }
 
 impl<'a> FEMParameter<'a> {
     pub fn new() -> Self {
-        Self { param: Vec::new(), e: [0., 0.], thk: 0., eps: 1.0e-6, nthreads: 1 }
+        Self { param: Vec::new(), eps: 1.0e-6, nthreads: 1, variables: HashMap::new() }
     }
     fn find_parameter(&self, param: ParamType) -> bool {
         for i in &self.param {
@@ -121,14 +120,23 @@ impl<'a> FEMParameter<'a> {
     pub fn set_num_threads(&mut self, nthreads: usize) {
         self.nthreads = nthreads;
     }
-    pub fn set_young_modulus(&mut self, e: f64) {
-        self.e[0] = e;
+    pub fn add_young_modulus(&mut self, value: &'a str, predicate: &'a str) {
+        self.param.push(Parameter::new_str(ParamType::YoungModulus, value, predicate, Direct::X | Direct::Y | Direct::Z));
     }
-    pub fn set_poisons_ratio(&mut self, m: f64) {
-        self.e[1] = m;
+    pub fn add_young_modulus_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool) {
+        self.param.push(Parameter::new_fun(ParamType::YoungModulus, value_fun, predicate_fun, Direct::X | Direct::Y | Direct::Z));
     }
-    pub fn set_thickness(&mut self, thk: f64) {
-        self.thk = thk;
+    pub fn add_poisons_ratio(&mut self, value: &'a str, predicate: &'a str) {
+        self.param.push(Parameter::new_str(ParamType::PoissonsRatio, value, predicate, Direct::X | Direct::Y | Direct::Z));
+    }
+    pub fn add_poisons_ratio_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool) {
+        self.param.push(Parameter::new_fun(ParamType::PoissonsRatio, value_fun, predicate_fun, Direct::X | Direct::Y | Direct::Z));
+    }
+    pub fn add_thickness(&mut self, value: &'a str, predicate: &'a str) {
+        self.param.push(Parameter::new_str(ParamType::Thickness, value, predicate, Direct::X | Direct::Y | Direct::Z));
+    }
+    pub fn add_thickness_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool) {
+        self.param.push(Parameter::new_fun(ParamType::Thickness, value_fun, predicate_fun, Direct::X | Direct::Y | Direct::Z));
     }
     pub fn set_eps(&mut self, eps: f64) {
         self.eps = eps;
@@ -160,6 +168,9 @@ impl<'a> FEMParameter<'a> {
     pub fn add_pressure_load_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool) {
         self.param.push(Parameter::new_fun(ParamType::PressureLoad, value_fun, predicate_fun, Direct::X | Direct::Y | Direct::Z));
     }
+    pub fn add_variable(&mut self, name: &'a str, value: f64) {
+        self.variables.insert(name, value);
+    }
 }
 
 
@@ -170,25 +181,29 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         use crate::fem::fe::fe1d::FiniteElement1D;
         use crate::fem::fe::fe2d::FiniteElement2D;
         use crate::fem::fe::fe3d::FiniteElement3D;
+
+        let x = self.get_mesh().get_fe_coord(i);
+        let e = [self.get_param_value(&x, ParamType::YoungModulus)?, self.get_param_value(&x, ParamType::PoissonsRatio)?];
+        let thk = self.get_param_value(&x, ParamType::Thickness)?;
         match self.get_mesh().fe_type {   
             FEType::FE1D2 => {
-                let mut fe = fe::fe1d::FE1D2::new(self.get_param().e, self.get_param().thk, self.get_mesh().get_fe_coord(i));
+                let mut fe = fe::fe1d::FE1D2::new(e, thk, x);
                 fe.generate()
             }
-            FEType::FE2D3 | FEType::FE2D3S  => {
-                let mut fe = fe::fe2d::FE2D3::new(self.get_param().e, self.get_param().thk, self.get_mesh().get_fe_coord(i), if self.get_mesh().fe_type == FEType::FE2D3 { false } else { true });
+            FEType::FE2D3 | FEType::FE3D3S  => {
+                let mut fe = fe::fe2d::FE2D3::new(e, thk, x, if self.get_mesh().fe_type == FEType::FE2D3 { false } else { true });
                 fe.generate()
             }
-            FEType::FE2D4 | FEType::FE2D4S => {
-                let mut fe = fe::fe2d::FE2D4::new(self.get_param().e, self.get_param().thk, self.get_mesh().get_fe_coord(i), if self.get_mesh().fe_type == FEType::FE2D4 { false } else { true });
+            FEType::FE2D4 | FEType::FE3D4S => {
+                let mut fe = fe::fe2d::FE2D4::new(e, thk, x, if self.get_mesh().fe_type == FEType::FE2D4 { false } else { true });
                 fe.generate()
             }
             FEType::FE3D4 => {
-                let mut fe = fe::fe3d::FE3D4::new(self.get_param().e, self.get_mesh().get_fe_coord(i));
+                let mut fe = fe::fe3d::FE3D4::new(e, x);
                 fe.generate()
             }
             FEType::FE3D8 => {
-                let mut fe = fe::fe3d::FE3D8::new(self.get_param().e, self.get_mesh().get_fe_coord(i));
+                let mut fe = fe::fe3d::FE3D8::new(e, x);
                 fe.generate()
             }
         } 
@@ -210,7 +225,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             }
             Ok(())
         })?;
-        msg.lock().unwrap().stop();
+        // msg.lock().unwrap().stop();
         Ok(())
     }
     fn num_results(&self) -> usize {
@@ -218,7 +233,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             FEType::FE1D2 => 3,
             FEType::FE2D3 | FEType::FE2D4 => 8,
             FEType::FE3D4 | FEType::FE3D8 => 15,
-            FEType::FE2D3S | FEType::FE2D4S => 18,
+            FEType::FE3D3S | FEType::FE3D4S => 18,
         }
     }
     fn fun_names(&self) -> Vec<&str> {
@@ -226,7 +241,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             FEType::FE1D2 => vec![ "U", "Exx", "Sxx" ],
             FEType::FE2D3 | FEType::FE2D4 => vec![ "U", "V", "Exx", "Eyy", "Exy", "Sxx", "Syy", "Sxy" ],
             FEType::FE3D4 | FEType::FE3D8 => vec![ "U", "V", "W", "Exx", "Eyy", "Ezz", "Exy", "Exz", "Eyz", "Sxx", "Syy", "Szz", "Sxy", "Sxz", "Syz" ],
-            FEType::FE2D3S | FEType::FE2D4S => vec![ "U", "V", "W", "Tx", "Ty", "Tz", "Exx", "Eyy", "Ezz", "Exy", "Exz", "Eyz", "Sxx", "Syy", "Szz", "Sxy", "Sxz", "Syz" ],
+            FEType::FE3D3S | FEType::FE3D4S => vec![ "U", "V", "W", "Tx", "Ty", "Tz", "Exx", "Eyy", "Ezz", "Exy", "Exz", "Eyz", "Sxx", "Syy", "Szz", "Sxy", "Sxz", "Syz" ],
         }
     }
     fn print_summary(&self, res: &Array2<f64>) {
@@ -279,30 +294,46 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         self.print_summary(&res);
         self.save_results(&res, res_name)
     }
+    fn get_param_value(&self, x: &Array2<f64>, param_type: ParamType) -> Result<f64, FemError> {
+        let mut val = 0.;
+        for it in &self.get_param().param {
+            if it.p_type == param_type {
+                if !it.get_predicate(&x.row(0), &self.get_param().variables)? {
+                    continue;
+                }                
+                val = it.get_value(&x.row(0), &self.get_param().variables)?;
+                break;
+            }
+        }
+        Ok(val)
+    }
     fn calc_fe_results(&self, i: usize, u: Array1<f64>) -> Result<Array2<f64>, FemError> {
         use crate::fem::fe::fe1d::FiniteElement1D;
         use crate::fem::fe::fe2d::FiniteElement2D;
         use crate::fem::fe::fe3d::FiniteElement3D;
 
+        let x = self.get_mesh().get_fe_coord(i);
+        let e: [f64; 2] = [self.get_param_value(&x, ParamType::YoungModulus)?, self.get_param_value(&x, ParamType::PoissonsRatio)?];
+        let thk = self.get_param_value(&x, ParamType::Thickness)?;
         match self.get_mesh().fe_type {   
             FEType::FE1D2 => {
-                let fe = fe::fe1d::FE1D2::new(self.get_param().e, self.get_param().thk, self.get_mesh().get_fe_coord(i));
+                let fe = fe::fe1d::FE1D2::new(e, thk, x);
                 fe.calc(&u)
             }
-            FEType::FE2D3 | FEType::FE2D3S => {
-                let fe = fe::fe2d::FE2D3::new(self.get_param().e, self.get_param().thk, self.get_mesh().get_fe_coord(i), if self.get_mesh().fe_type == FEType::FE2D3 { false } else { true });
+            FEType::FE2D3 | FEType::FE3D3S => {
+                let fe = fe::fe2d::FE2D3::new(e, thk, x, if self.get_mesh().fe_type == FEType::FE2D3 { false } else { true });
                 fe.calc(&u)
             }
-            FEType::FE2D4 | FEType::FE2D4S => {
-                let fe = fe::fe2d::FE2D4::new(self.get_param().e, self.get_param().thk, self.get_mesh().get_fe_coord(i), if self.get_mesh().fe_type == FEType::FE2D4 { false } else { true });
+            FEType::FE2D4 | FEType::FE3D4S => {
+                let fe = fe::fe2d::FE2D4::new(e, thk, x, if self.get_mesh().fe_type == FEType::FE2D4 { false } else { true });
                 fe.calc(&u)
             }
             FEType::FE3D4 => {
-                let fe = fe::fe3d::FE3D4::new(self.get_param().e, self.get_mesh().get_fe_coord(i));
+                let fe = fe::fe3d::FE3D4::new(e, x);
                 fe.calc(&u)
             }
             FEType::FE3D8 => {
-                let fe = fe::fe3d::FE3D8::new(self.get_param().e, self.get_mesh().get_fe_coord(i));
+                let fe = fe::fe3d::FE3D8::new(e, x);
                 fe.calc(&u)
             }
         } 
@@ -402,8 +433,8 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
     fn volume_load_share(&self) -> Array1<f64> {
         match self.get_mesh().fe_type {   
             FEType::FE1D2 => array![ 0.5, 0.5 ],
-            FEType::FE2D3 | FEType::FE2D3S => array![ 0.33333333333, 0.33333333333, 0.33333333333 ],
-            FEType::FE2D4 | FEType::FE2D4S | FEType::FE3D4 => array![ 0.25, 0.25, 0.25, 0.25 ],
+            FEType::FE2D3 | FEType::FE3D3S => array![ 0.33333333333, 0.33333333333, 0.33333333333 ],
+            FEType::FE2D4 | FEType::FE3D4S | FEType::FE3D4 => array![ 0.25, 0.25, 0.25, 0.25 ],
             FEType::FE3D8 => array![ 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125 ],
         } 
     }
@@ -411,8 +442,8 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         match self.get_mesh().fe_type {   
             FEType::FE1D2 => array![ 1.0 ],
             FEType::FE2D3 | FEType::FE2D4 => array![ 0.5, 0.5 ],
-            FEType::FE2D3S | FEType::FE3D4 => array![ 0.333333333333, 0.333333333333, 0.333333333333 ],
-            FEType::FE2D4S | FEType::FE3D8 => array![ 0.25, 0.25, 0.25, 0.25 ],
+            FEType::FE3D3S | FEType::FE3D4 => array![ 0.333333333333, 0.333333333333, 0.333333333333 ],
+            FEType::FE3D4S | FEType::FE3D8 => array![ 0.25, 0.25, 0.25, 0.25 ],
         } 
     }
     fn set_boundary_condition(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
@@ -422,10 +453,10 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             for it in &self.get_param().param {
                 if it.p_type == ParamType::BoundaryCondition {
                     let x = self.get_mesh().x.row(i);
-                    if it.get_predicate(&x)? == false {
+                    if it.get_predicate(&x, &self.get_param().variables)? == false {
                         continue;
                     }
-                    let val = it.get_value(&x)?;
+                    let val = it.get_value(&x, &self.get_param().variables)?;
                     if it.direct.contains(Direct::X) {
                         // solver.lock().unwrap().set_result_value((i + l) * self.mesh.freedom + 0, val)?;    
                         solver.lock().unwrap().set_result_value((i) * self.get_mesh().freedom + 0, val)?;    
@@ -440,7 +471,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             }
             Ok(())    
         })?;
-        msg.lock().unwrap().stop();
+        // msg.lock().unwrap().stop();
         Ok(())
     }
     fn set_concentrated_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
@@ -451,10 +482,10 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
                 for it in &self.get_param().param {
                     if it.p_type == ParamType::ConcentratedLoad {
                         let x = self.get_mesh().x.row(i);
-                        if it.get_predicate(&x)? == false {
+                        if it.get_predicate(&x, &self.get_param().variables)? == false {
                             continue;
                         }
-                        let val = it.get_value(&x)?;
+                        let val = it.get_value(&x, &self.get_param().variables)?;
                         if it.direct.contains(Direct::X) {
                             solver.lock().unwrap().set_vector_value((i) * self.get_mesh().freedom + 0, val)?;    
                         }
@@ -479,12 +510,12 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
                 for it in &self.get_param().param {
                     if it.p_type == ParamType::VolumeLoad {
                         let x = self.get_mesh().get_fe_coord(i);
-                        if !check_elem(&x, &it)? {
+                        if !self.check_elem(&x, &it)? {
                             continue;
-                        }
+                        }                        
                         let share = self.volume_load_share() * self.get_mesh().fe_volume(i); 
                         for j in 0..self.get_mesh().fe.shape()[1] {
-                            let val = it.get_value(&x.row(j))? * share[j];
+                            let val = it.get_value(&x.row(j), &self.get_param().variables)? * share[j];
                             if it.direct.contains(Direct::X) {
                                 solver.lock().unwrap().add_vector_value(self.get_mesh().fe[[i, j]] * self.get_mesh().freedom + 0, val)?;    
                             }
@@ -510,13 +541,13 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
                 for it in &self.get_param().param {
                     if it.p_type == ParamType::PressureLoad || it.p_type == ParamType::SurfaceLoad {
                         let x = self.get_mesh().get_be_coord(i);
-                        if !check_elem(&x, &it)? {
+                        if !self.check_elem(&x, &it)? {
                             continue;
-                        }
+                        }                        
                         let share = self.surface_load_share() * self.get_mesh().be_volume(i); 
                         let normal = if it.p_type == ParamType::PressureLoad { self.get_mesh().be_normal(i) } else { array![1., 1., 1.] };
                         for j in 0..self.get_mesh().be.shape()[1] {
-                            let val = it.get_value(&x.row(j))? * share[j];
+                            let val = it.get_value(&x.row(j), &self.get_param().variables)? * share[j];
                             if it.direct.contains(Direct::X) {
                                 solver.lock().unwrap().add_vector_value(self.get_mesh().be[[i, j]] * self.get_mesh().freedom + 0, val * normal[0])?;    
                             }
@@ -533,6 +564,14 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             })?;
         }
         Ok(())
+    }
+    fn check_elem(&self, x: &Array2<f64>, param: &Parameter) -> Result<bool, FemError> {
+        for i in 0..x.shape()[0] {
+            if param.get_predicate(&x.row(i), &self.get_param().variables)? == false {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 }
 

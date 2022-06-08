@@ -10,8 +10,8 @@ pub enum FEType {
     FE1D2,
     FE2D3,
     FE2D4,
-    FE2D3S,
-    FE2D4S,
+    FE3D3S,
+    FE3D4S,
     FE3D4,
     FE3D8,
 }
@@ -22,8 +22,8 @@ impl fmt::Display for FEType {
             FEType::FE1D2 => "fe1d2",     
             FEType::FE2D3 => "fe2d3",     
             FEType::FE2D4 => "fe2d4",     
-            FEType::FE2D3S => "fe2d3s",     
-            FEType::FE2D4S => "fe2d4s",     
+            FEType::FE3D3S => "fe3d3s",     
+            FEType::FE3D4S => "fe3d4s",     
             FEType::FE3D4 => "fe3d4",     
             FEType::FE3D8 => "fe3d8",     
         };

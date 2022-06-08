@@ -1,11 +1,26 @@
 {
     "Mesh": "data/shell-tube-3.mesh",
     "Result": "data/shell-tube-3.res",
-    "YoungModulus": 203200,
-    "PoissonRatio": 0.27,
-    "Thickness": 0.0369,
     "Threads": 8,
     "Eps": 1.0e-6,
+    "YoungModulus": [
+        {
+            "Value": "203200", 
+            "Predicate": "" 
+        }
+    ],
+    "PoissonRatio": [
+        {
+            "Value": "0.27", 
+            "Predicate": "" 
+        }
+    ],
+    "Thickness": [
+        {
+            "Value": "0.0369", 
+            "Predicate": "" 
+        }
+    ],
     "BoundaryConditions": [
         {
             "Value": "0", 
@@ -18,5 +33,8 @@
             "Value": "0.05", 
             "Predicate": "" 
         }
+    ],
+    "Variables": [
+        "eps 0.001"
     ]
 }

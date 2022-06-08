@@ -11,9 +11,9 @@ fn test_1d2(nthreads: usize) -> Result<(), FemError> {
     let mut param = FEMParameter::new();
 
     param.set_num_threads(nthreads);
-    param.set_young_modulus(203200.);
-    param.set_thickness(1.0);
     param.set_eps(1.0e-6);
+    param.add_young_modulus("203200.", "");
+    param.add_thickness("1.0", "");
     param.add_boundary_condition("0", "x == 0", Direct::X);
     param.add_concentrated_load("1", "x == 10", Direct::X);
    
@@ -28,9 +28,9 @@ fn test_2d4(nthreads: usize) -> Result<(), FemError> {
     let mut param = FEMParameter::new();
 
     param.set_num_threads(nthreads);
-    param.set_young_modulus(203200.0);
-    param.set_poisons_ratio(0.27);
-    param.set_thickness(1.0);
+    param.add_young_modulus("203200.0", "");
+    param.add_poisons_ratio("0.27", "");
+    param.add_thickness("1.0", "");
     param.add_boundary_condition("0", "x == 0", Direct::X | Direct::Y);
     param.add_concentrated_load("-1", "x == 10", Direct::Y);
     let mut fem = FEM::new(&mesh, &param);
@@ -44,8 +44,8 @@ fn test_3d8(nthreads: usize) -> Result<(), FemError> {
     let mut param = FEMParameter::new();
 
     param.set_num_threads(nthreads);
-    param.set_young_modulus(203200.);
-    param.set_poisons_ratio(0.27);
+    param.add_young_modulus("203200.0", "");
+    param.add_poisons_ratio("0.27", "");
     
     // param.add_boundary_condition("0", "z == 0", Direct::X | Direct::Y | Direct::Z);
     param.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
@@ -62,9 +62,9 @@ fn test_shell_3(nthreads: usize) -> Result<(), FemError> {
     let mut param = FEMParameter::new();
 
     param.set_num_threads(nthreads);
-    param.set_young_modulus(203200.);
-    param.set_poisons_ratio(0.27);
-    param.set_thickness(0.0369);
+    param.add_young_modulus("203200.0", "");
+    param.add_poisons_ratio("0.27", "");
+    param.add_thickness("0.0369", "");
     param.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. || z == 4.014 { true } else { false } }, Direct::X | Direct::Y | Direct::Z);
     param.add_pressure_load_fun(|_x, _y, _z| { 0.05 }, |_x, _y, _z| { true });
     let mut fem = FEM::new(&mesh, &param);
@@ -77,7 +77,7 @@ fn main() {
     // test_2d4(8);
     // test_3d8(8);
     if let Err(e) = test_shell_3(8) {
-        println!("Error: {}", e);
+        println!("\n\x1b[91mError: {}\x1b[0m", e);
     }
 }
 

@@ -9,7 +9,8 @@ fn main() {
         println!("Too few parameters!");
     } else {
         if let Err(e) = read_json(args[1].as_str()) {
-            println!("Error: {}", e);
+            // println!("\n\x1b[93mError: {}\x1b[0m", e);
+            println!("\n\x1b[91mError: {}\x1b[0m", e);
         }
     }
 }

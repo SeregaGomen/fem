@@ -3,29 +3,6 @@ use std::fs;
 use crate::fem::{Direct, FEM, FEMParameter, error::FemError};
 use crate::fem::mesh::Mesh;
 
-///! {
-///!     "Mesh": "/home/serg/work/python/pyfem/mesh/cube.trpa",
-///!     "Result": "/home/serg/work/python/pyfem/mesh/cube.res",
-///!     "YoungModulus": 203200,
-///!     "PoissonRatio": 0.27,
-///!     "Threads": 4,
-///!     "BoundaryConditions": [
-///!         {
-///!             "Value": "0", 
-///!             "Predicate": "z == 0", 
-///!             "Direct": "XYZ"
-///!         }
-///!     ],
-///!     "VolumeLoad": [
-///!         {
-///!             "Value": "-0.5", 
-///!             "Predicate": "", 
-///!             "Direct": "Z"
-///!         }
-///!     ]
-///! }
-
-
 #[allow(dead_code)]
 pub fn read_json(file_name: &str) -> Result<(), FemError> {
     let data = fs::read_to_string(file_name)?;
@@ -47,24 +24,46 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
         None => 1,
     };
     param.set_num_threads(nthreads as usize);
-    let thickness = match v["Thickness"].as_f64() {
-        Some(v) => v,
-        None => 1.0,
-    };
-    param.set_thickness(thickness);
-    let ym = match v["YoungModulus"].as_f64() {
-        Some(v) => v,
-        None => return Err(FemError::YoungModulusError),
-    };
-    param.set_young_modulus(ym);
-    if mesh.is_2d() || mesh.is_3d() {
-        let pr = match v["PoissonRatio"].as_f64() {
+
+    for i in 0..v["Thickness"].len() {
+        let value: &str = match v["Thickness"][i]["Value"].as_str() {
             Some(v) => v,
-            None => return Err(FemError::PoissonRatioError),
+            None => return Err(FemError::ValueError),
         };
-        param.set_poisons_ratio(pr);
+        let predicate: &str = match v["Thickness"][i]["Predicate"].as_str() {
+            Some(v) => v,
+            None => return Err(FemError::PredicateError),
+        };
+        param.add_thickness(value, predicate);
     }
 
+
+
+    for i in 0..v["YoungModulus"].len() {
+        let value: &str = match v["YoungModulus"][i]["Value"].as_str() {
+            Some(v) => v,
+            None => return Err(FemError::ValueError),
+        };
+        let predicate: &str = match v["YoungModulus"][i]["Predicate"].as_str() {
+            Some(v) => v,
+            None => return Err(FemError::PredicateError),
+        };
+        param.add_young_modulus(value, predicate);
+    }
+    if mesh.is_2d() || mesh.is_3d() {
+
+        for i in 0..v["PoissonRatio"].len() {
+            let value: &str = match v["PoissonRatio"][i]["Value"].as_str() {
+                Some(v) => v,
+                None => return Err(FemError::ValueError),
+            };
+            let predicate: &str = match v["PoissonRatio"][i]["Predicate"].as_str() {
+                Some(v) => v,
+                None => return Err(FemError::PredicateError),
+            };
+            param.add_poisons_ratio(value, predicate);
+        }
+    }
     for i in 0..v["BoundaryConditions"].len() {
         let direct = get_json_direct("BoundaryConditions", &v, i)?;
         let value: &str = match v["BoundaryConditions"][i]["Value"].as_str() {
@@ -128,6 +127,21 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
         };
         param.add_pressure_load(value, predicate);
     }
+
+    for i in 0..v["Variables"].len() {
+        let s_val: &str = match v["Variables"][i].as_str() {
+            Some(v) => v,
+            None => return Err(FemError::ValueError),
+        };
+        let split: Vec<&str> = s_val.split(' ').collect();
+        let name = split[0];
+        let val = match split[1].to_string().parse() {
+            Ok(v) => v,
+            Err(_) => return Err(FemError::InvalidNumber),
+        };
+        param.add_variable(name, val);
+    }
+
 
     let res_name = match v["Result"].as_str() {
         Some(v) => v,

@@ -228,7 +228,7 @@ impl<'a> Parser<'a> {
         }
         // Обработка строкового литерала
         if self.index < self.expression.len() && (self.expression[self.index].is_ascii_alphabetic() || self.expression[self.index] == '_') {
-            while self.index < self.expression.len() && (self.expression[self.index].is_ascii_alphabetic() || self.expression[self.index] == '_') {
+            while self.index < self.expression.len() && (self.expression[self.index].is_ascii_alphabetic() || self.expression[self.index].is_ascii_digit() || self.expression[self.index] == '_') {
                 self.token.push(self.expression[self.index]);
                 self.index += 1
             }   
