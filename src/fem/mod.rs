@@ -30,6 +30,26 @@ bitflags! {
     }
 }
 
+enum ParamValueType {
+    String,
+    Function,
+}
+
+struct ParamValue<'a> {
+    value_type: ParamValueType,
+    value_str: &'a str,
+    value_fun: Option<fn(f64, f64, f64) -> f64>,
+}
+
+impl<'a> ParamValue<'a> {
+    fn new_str(value: &'a str) -> Self {
+        Self { value_type: ParamValueType::String, value_str: value, value_fun: None }
+    }
+    fn new_fun(value: fn(f64, f64, f64) -> f64) -> Self {
+        Self { value_type: ParamValueType::Function, value_str: "", value_fun: Some(value) }
+    }
+} 
+
 #[derive(PartialEq)]
 pub enum ParamType {
     BoundaryCondition,  // Граничное условие, заданноe выражением
@@ -40,27 +60,30 @@ pub enum ParamType {
     Thickness,          // Толщина (сечение) элемента
     YoungModulus,       // Модуль Юнга
     PoissonsRatio,      // Коэффициент Пуассона
+    StressStrainCurve,  // Диаграмма материала
 }
 
 pub struct Parameter<'a> {
     p_type: ParamType,
-    value: &'a str,
-    predicate: &'a str,
-    value_fun: Option<fn(f64, f64, f64) -> f64>,
-    predicate_fun: Option<fn(f64, f64, f64) -> bool>,
+    value: ParamValue<'a>,
+    predicate: ParamValue<'a>,
     direct: Direct,
 }
 
 impl<'a> Parameter<'a> {
-    fn new_str(p_type: ParamType, value: &'a str, predicate: &'a str, direct: Direct) -> Self {
-        Self { p_type, value, predicate, value_fun: None, predicate_fun: None, direct }
+    fn new_str(p_type: ParamType, val: &'a str, pred: &'a str, direct: Direct) -> Self {
+        let value = ParamValue::new_str(val);
+        let predicate = ParamValue::new_str(pred);
+        Self { p_type, value, predicate, direct }
     }
-    fn new_fun(p_type: ParamType, value_f: fn(f64, f64, f64) -> f64, predicate_f: fn(f64, f64, f64) -> bool, direct: Direct) -> Self {
-        Self { p_type, value: "", predicate: "", value_fun: Some(value_f), predicate_fun: Some(predicate_f), direct }
+    fn new_fun(p_type: ParamType, val: fn(f64, f64, f64) -> f64, pred: fn(f64, f64, f64) -> f64, direct: Direct) -> Self {
+        let value = ParamValue::new_fun(val);
+        let predicate = ParamValue::new_fun(pred);
+        Self { p_type, value, predicate, direct }
     }
     fn get_value(&self, x: &ArrayView1<f64>, variables: &HashMap<&'a str, f64>) -> Result<f64, FemError> {
-        match self.value_fun {
-            None => {
+        match self.value.value_type {
+            ParamValueType::String => {
                 let var_name = ["x", "y", "z"];
                 let mut parser = Parser::new();
                 for i in 0..x.len() {
@@ -69,16 +92,22 @@ impl<'a> Parameter<'a> {
                 for i in variables {
                     parser.set_variable(i.0, *i.1);    
                 }
-                parser.set_expression(&self.value)?;
+                parser.set_expression(self.value.value_str)?;
                 parser.value()
             }
-            Some(fun) => Ok(fun(x[0], if x.len() > 1 { x[1] } else { 0. }, if x.len() > 2 { x[2] } else { 0. } )),
+            ParamValueType::Function => {
+                if let Some(fun) = self.value.value_fun  {
+                    Ok(fun(x[0], if x.len() > 1 { x[1] } else { 0. }, if x.len() > 2 { x[2] } else { 0. })) 
+                } else {
+                    Err(FemError::InternalError)
+                }
+            }
         }
     }
     fn get_predicate(&self, x: &ArrayView1<f64>, variables: &HashMap<&'a str, f64>) -> Result<bool, FemError> {
-        match self.predicate_fun {
-            None => {
-                if self.predicate.len() == 0 {
+        match self.predicate.value_type {
+            ParamValueType::String => {
+                if self.predicate.value_str.len() == 0 {
                     Ok(true)
                 } else {
                     let var_name = ["x", "y", "z"];
@@ -89,11 +118,18 @@ impl<'a> Parameter<'a> {
                     for i in variables {
                         parser.set_variable(i.0, *i.1);    
                     }
-                    parser.set_expression(&self.predicate)?;
-                    if parser.value()? == 1. { Ok(true) } else { Ok(false) }
+                    parser.set_expression(&self.predicate.value_str)?;
+                    Ok(if parser.value()? == 1. { true } else { false })
                 }
             }
-            Some(fun) => Ok(fun(x[0], if x.len() > 1 { x[1] } else { 0. }, if x.len() > 2 { x[2] } else { 0. } )),
+            ParamValueType::Function => {
+                let res = if let Some(fun) = self.value.value_fun {
+                    fun(x[0], if x.len() > 1 { x[1] } else { 0. }, if x.len() > 2 { x[2] } else { 0. } )
+                } else {
+                    return Err(FemError::InternalError)
+                };
+                Ok(if res == 1. {true} else {false})
+            }
         }
     }
 }
@@ -120,53 +156,53 @@ impl<'a> FEMParameter<'a> {
     pub fn set_num_threads(&mut self, nthreads: usize) {
         self.nthreads = nthreads;
     }
-    pub fn add_young_modulus(&mut self, value: &'a str, predicate: &'a str) {
+    pub fn add_young_modulus_str(&mut self, value: &'a str, predicate: &'a str) {
         self.param.push(Parameter::new_str(ParamType::YoungModulus, value, predicate, Direct::X | Direct::Y | Direct::Z));
     }
-    pub fn add_young_modulus_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool) {
-        self.param.push(Parameter::new_fun(ParamType::YoungModulus, value_fun, predicate_fun, Direct::X | Direct::Y | Direct::Z));
+    pub fn add_young_modulus_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64) {
+        self.param.push(Parameter::new_fun(ParamType::YoungModulus, value, predicate, Direct::X | Direct::Y | Direct::Z));
     }
-    pub fn add_poisons_ratio(&mut self, value: &'a str, predicate: &'a str) {
+    pub fn add_poisons_ratio_str(&mut self, value: &'a str, predicate: &'a str) {
         self.param.push(Parameter::new_str(ParamType::PoissonsRatio, value, predicate, Direct::X | Direct::Y | Direct::Z));
     }
-    pub fn add_poisons_ratio_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool) {
-        self.param.push(Parameter::new_fun(ParamType::PoissonsRatio, value_fun, predicate_fun, Direct::X | Direct::Y | Direct::Z));
+    pub fn add_poisons_ratio_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64) {
+        self.param.push(Parameter::new_fun(ParamType::PoissonsRatio, value, predicate, Direct::X | Direct::Y | Direct::Z));
     }
-    pub fn add_thickness(&mut self, value: &'a str, predicate: &'a str) {
+    pub fn add_thickness_str(&mut self, value: &'a str, predicate: &'a str) {
         self.param.push(Parameter::new_str(ParamType::Thickness, value, predicate, Direct::X | Direct::Y | Direct::Z));
     }
-    pub fn add_thickness_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool) {
-        self.param.push(Parameter::new_fun(ParamType::Thickness, value_fun, predicate_fun, Direct::X | Direct::Y | Direct::Z));
+    pub fn add_thickness_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64) {
+        self.param.push(Parameter::new_fun(ParamType::Thickness, value, predicate, Direct::X | Direct::Y | Direct::Z));
     }
     pub fn set_eps(&mut self, eps: f64) {
         self.eps = eps;
     }
-    pub fn add_boundary_condition(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
+    pub fn add_boundary_condition_str(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
         self.param.push(Parameter::new_str(ParamType::BoundaryCondition, value, predicate, direct));
     }
-    pub fn add_boundary_condition_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool, direct: Direct) {
-        self.param.push(Parameter::new_fun(ParamType::BoundaryCondition, value_fun, predicate_fun, direct));
+    pub fn add_boundary_condition_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64, direct: Direct) {
+        self.param.push(Parameter::new_fun(ParamType::BoundaryCondition, value, predicate, direct));
     }
-    pub fn add_concentrated_load(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
+    pub fn add_concentrated_load_str(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
         self.param.push(Parameter::new_str(ParamType::ConcentratedLoad, value, predicate, direct));
     }
-    pub fn add_volume_load(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
+    pub fn add_volume_load_str(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
         self.param.push(Parameter::new_str(ParamType::VolumeLoad, value, predicate, direct));
     }
-    pub fn add_volume_load_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool, direct: Direct) {
-        self.param.push(Parameter::new_fun(ParamType::VolumeLoad, value_fun, predicate_fun, direct));
+    pub fn add_volume_load_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64, direct: Direct) {
+        self.param.push(Parameter::new_fun(ParamType::VolumeLoad, value, predicate, direct));
     }
-    pub fn add_surface_load(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
+    pub fn add_surface_load_str(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
         self.param.push(Parameter::new_str(ParamType::SurfaceLoad, value, predicate, direct));
     }
-    pub fn add_surface_load_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool, direct: Direct) {
-        self.param.push(Parameter::new_fun(ParamType::SurfaceLoad, value_fun, predicate_fun, direct));
+    pub fn add_surface_load_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64, direct: Direct) {
+        self.param.push(Parameter::new_fun(ParamType::SurfaceLoad, value, predicate, direct));
     }
-    pub fn add_pressure_load(&mut self, value: &'a str, predicate: &'a str) {
+    pub fn add_pressure_load_str(&mut self, value: &'a str, predicate: &'a str) {
         self.param.push(Parameter::new_str(ParamType::PressureLoad, value, predicate, Direct::X | Direct::Y | Direct::Z));
     }
-    pub fn add_pressure_load_fun(&mut self, value_fun: fn(f64, f64, f64) -> f64, predicate_fun: fn(f64, f64, f64) -> bool) {
-        self.param.push(Parameter::new_fun(ParamType::PressureLoad, value_fun, predicate_fun, Direct::X | Direct::Y | Direct::Z));
+    pub fn add_pressure_load_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64) {
+        self.param.push(Parameter::new_fun(ParamType::PressureLoad, value, predicate, Direct::X | Direct::Y | Direct::Z));
     }
     pub fn add_variable(&mut self, name: &'a str, value: f64) {
         self.variables.insert(name, value);
@@ -238,10 +274,10 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
     }
     fn fun_names(&self) -> Vec<&str> {
         match self.get_mesh().fe_type {
-            FEType::FE1D2 => vec![ "U", "Exx", "Sxx" ],
-            FEType::FE2D3 | FEType::FE2D4 => vec![ "U", "V", "Exx", "Eyy", "Exy", "Sxx", "Syy", "Sxy" ],
-            FEType::FE3D4 | FEType::FE3D8 => vec![ "U", "V", "W", "Exx", "Eyy", "Ezz", "Exy", "Exz", "Eyz", "Sxx", "Syy", "Szz", "Sxy", "Sxz", "Syz" ],
-            FEType::FE3D3S | FEType::FE3D4S => vec![ "U", "V", "W", "Tx", "Ty", "Tz", "Exx", "Eyy", "Ezz", "Exy", "Exz", "Eyz", "Sxx", "Syy", "Szz", "Sxy", "Sxz", "Syz" ],
+            FEType::FE1D2 => vec![ "U", "Exx", "Sxx", "Si" ],
+            FEType::FE2D3 | FEType::FE2D4 => vec![ "U", "V", "Exx", "Eyy", "Exy", "Sxx", "Syy", "Sxy", "Si" ],
+            FEType::FE3D4 | FEType::FE3D8 => vec![ "U", "V", "W", "Exx", "Eyy", "Ezz", "Exy", "Exz", "Eyz", "Sxx", "Syy", "Szz", "Sxy", "Sxz", "Syz", "Si" ],
+            FEType::FE3D3S | FEType::FE3D4S => vec![ "U", "V", "W", "Tx", "Ty", "Tz", "Exx", "Eyy", "Ezz", "Exy", "Exz", "Eyz", "Sxx", "Syy", "Szz", "Sxy", "Sxz", "Syz", "Si" ],
         }
     }
     fn print_summary(&self, res: &Array2<f64>) {
@@ -253,7 +289,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         }
     }
     fn calc_results(&self, u: &Array1<f64>, res_name: &str) -> Result<(), FemError> {
-        let res = Mutex::new(Array2::zeros((self.num_results(), self.get_mesh().num_vertex)));
+        let res = Mutex::new(Array2::zeros((self.num_results() + 1, self.get_mesh().num_vertex)));
         let counter = Mutex::new(Array1::<i32>::zeros(self.get_mesh().num_vertex));
         // Копирование результатов расчета (перемещений)
         for i in 0..self.get_mesh().freedom {
@@ -290,6 +326,18 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             for j in 0..self.get_mesh().num_vertex {
                 res[[i, j]] /= counter[j] as f64;
             }
+        }
+        // Вычисляем интенсивность напряжений
+        let m_sqrt1_2 = 0.5 * 2_f64.sqrt();
+        for i in 0..self.get_mesh().num_vertex {
+            res[[self.num_results(), i]] = m_sqrt1_2 * match self.get_mesh().fe_type {
+                FEType::FE1D2 => res[[2, i]].abs(),
+                FEType::FE2D3 | FEType::FE2D4 => f64::sqrt(f64::powf(res[[5, i]] - res[[6, i]], 2.0) + 6.0 * (f64::powf(res[[7, i]], 2.0))),
+                FEType::FE3D4 | FEType::FE3D8 => f64::sqrt(f64::powf(res[[9, i]] - res[[10, i]], 2.0) + f64::powf(res[[9, i]] - res[[11, i]], 2.0) +
+                    f64::powf(res[[11, i]] - res[[12, i]], 2.0) + 6.0 * (f64::powf(res[[12, i]], 2.0) + f64::powf(res[[13, i]], 2.0) + f64::powf(res[[14, i]], 2.0))),
+                FEType::FE3D3S | FEType::FE3D4S => f64::sqrt(f64::powf(res[[12, i]] - res[[13, i]], 2.0) + f64::powf(res[[12, i]] - res[[14, i]], 2.0) +
+                    f64::powf(res[[13, i]] - res[[14, i]], 2.0) + 6.0 * (f64::powf(res[[15, i]], 2.0) + f64::powf(res[[16, i]], 2.0) + f64::powf(res[[17, i]], 2.0))),
+            };
         }
         self.print_summary(&res);
         self.save_results(&res, res_name)
@@ -573,6 +621,11 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         }
         Ok(true)
     }
+    fn set_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
+        self.set_concentrated_load(solver)?;
+        self.set_volume_load(solver)?;
+        self.set_surface_load(solver)
+    }
 }
 
 pub struct FEM<'a> {
@@ -599,10 +652,41 @@ impl<'a> FEM<'a> {
         let time = Instant::now();
         let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
         // let mut solver = Mutex::new(EnvSolver::new(&self.mesh));
+        self.set_load(&mut solver)?;
         self.set_global_matrix(&mut solver)?;
-        self.set_concentrated_load(&mut solver)?;
-        self.set_volume_load(&mut solver)?;
-        self.set_surface_load(&mut solver)?;
+        self.set_boundary_condition(&mut solver)?;
+        self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?, res_name)?;
+        println!("Lead time: {:.2?}", time.elapsed());
+        Ok(())
+    }
+ }
+
+pub struct FEMPlasticity<'a> {
+    mesh: &'a Mesh,
+    param: &'a FEMParameter<'a>,
+}
+
+impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
+    fn get_param(&self) -> Arc<&FEMParameter<'a>> {
+        Arc::new(self.param)
+    }
+    fn get_mesh(&self) -> Arc<&Mesh> {
+        Arc::new(self.mesh)
+    }
+}
+
+
+impl<'a> FEMPlasticity<'a> {
+    pub fn new(mesh: &'a Mesh, param: &'a FEMParameter) -> Self {
+        Self {mesh, param}
+    }
+    pub fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
+        rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
+        let time = Instant::now();
+        let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
+        // let mut solver = Mutex::new(EnvSolver::new(&self.mesh));
+        self.set_load(&mut solver)?;
+        self.set_global_matrix(&mut solver)?;
         self.set_boundary_condition(&mut solver)?;
         self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?, res_name)?;
         println!("Lead time: {:.2?}", time.elapsed());

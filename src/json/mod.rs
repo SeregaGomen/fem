@@ -34,7 +34,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        param.add_thickness(value, predicate);
+        param.add_thickness_str(value, predicate);
     }
 
 
@@ -48,7 +48,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        param.add_young_modulus(value, predicate);
+        param.add_young_modulus_str(value, predicate);
     }
     if mesh.is_2d() || mesh.is_3d() {
 
@@ -61,7 +61,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
                 Some(v) => v,
                 None => return Err(FemError::PredicateError),
             };
-            param.add_poisons_ratio(value, predicate);
+            param.add_poisons_ratio_str(value, predicate);
         }
     }
     for i in 0..v["BoundaryConditions"].len() {
@@ -74,7 +74,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        param.add_boundary_condition(value, predicate, direct);
+        param.add_boundary_condition_str(value, predicate, direct);
     }
 
     for i in 0..v["VolumeLoad"].len() {
@@ -87,7 +87,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        param.add_volume_load(value, predicate, direct);
+        param.add_volume_load_str(value, predicate, direct);
     }
 
     for i in 0..v["ConcentratedLoad"].len() {
@@ -100,7 +100,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        param.add_concentrated_load(value, predicate, direct);
+        param.add_concentrated_load_str(value, predicate, direct);
     }
 
     for i in 0..v["SurfaceLoad"].len() {
@@ -113,7 +113,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        param.add_surface_load(value, predicate, direct);
+        param.add_surface_load_str(value, predicate, direct);
     }
 
     for i in 0..v["PressureLoad"].len() {
@@ -125,7 +125,7 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
             Some(v) => v,
             None => return Err(FemError::PredicateError),
         };
-        param.add_pressure_load(value, predicate);
+        param.add_pressure_load_str(value, predicate);
     }
 
     for i in 0..v["Variables"].len() {

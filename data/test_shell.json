@@ -5,19 +5,19 @@
     "Eps": 1.0e-6,
     "YoungModulus": [
         {
-            "Value": "203200", 
+            "Value": "6.5e+10", 
             "Predicate": "" 
         }
     ],
     "PoissonRatio": [
         {
-            "Value": "0.27", 
+            "Value": "0.3", 
             "Predicate": "" 
         }
     ],
     "Thickness": [
         {
-            "Value": "0.0369", 
+            "Value": "0.0045", 
             "Predicate": "" 
         }
     ],
@@ -30,7 +30,7 @@
     ],
     "PressureLoad": [
         {
-            "Value": "0.05", 
+            "Value": "3.65E+07", 
             "Predicate": "" 
         }
     ],
