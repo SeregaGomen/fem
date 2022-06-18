@@ -94,8 +94,6 @@ impl Solver for LzhSolver {
         for i in 0..self.b.len() {
             self.b[i] *= coef;
         }     
-        println!("{:?}", self.b);
-   
     }
     fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError> {
         self.a.solve(&self.b, eps)

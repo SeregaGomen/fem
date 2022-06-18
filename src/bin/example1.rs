@@ -57,13 +57,14 @@ fn test_shell_3(nthreads: usize) -> Result<(), FemError> {
     let file_name = ("data/shell-tube-3.mesh", "data/shell-tube-3.res");
     let mesh = Mesh::new(file_name.0)?;
     let mut param = FEMParameter::new();
+    let fn_true = |_x: f64, _y: f64, _z: f64| { 1.0 };
 
     param.set_num_threads(nthreads);
-    param.add_young_modulus_str("203200.0", "");
-    param.add_poisons_ratio_str("0.27", "");
-    param.add_thickness_str("0.0369", "");
+    param.add_young_modulus_fun(|_x, _y, _z| { 6.5e+10 }, fn_true);
+    param.add_poisons_ratio_fun(|_x, _y, _z| { 0.3 }, fn_true);
+    param.add_thickness_fun(|_x, _y, _z| { 0.0045 }, fn_true);
     param.add_boundary_condition_fun(|_x, _y, _z| { 0. }, |_x, _y, z| { if z == 0. || z == 4.014 { 1. } else { 0. } }, Direct::X | Direct::Y | Direct::Z);
-    param.add_pressure_load_fun(|_x, _y, _z| { 0.05 }, |_x, _y, _z| { 1. });
+    param.add_pressure_load_fun(|_x, _y, _z| { 3.65E+07 }, fn_true);
     generate::<FEM>(&mesh, &param, file_name.1)
 }
 

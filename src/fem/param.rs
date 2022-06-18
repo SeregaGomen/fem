@@ -128,7 +128,7 @@ impl<'a> Parameter<'a> {
                 }
             }
             ParamValueType::Function => {
-                let res = if let Some(fun) = self.value.value_fun {
+                let res = if let Some(fun) = self.predicate.value_fun {
                     fun(x[0], if x.len() > 1 { x[1] } else { 0. }, if x.len() > 2 { x[2] } else { 0. } )
                 } else {
                     return Err(FemError::InternalError)
