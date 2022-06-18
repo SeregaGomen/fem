@@ -152,8 +152,8 @@ pub mod fe1d {
     
     }
     impl FE1D2 {
-        pub fn new(e: [f64; 2], thk: f64, x: Array2<f64>) -> Self {
-            Self { e, thk, x, }
+        pub fn new(x: Array2<f64>, e: [f64; 2], thk: f64) -> Self {
+            Self { x, e, thk, }
         }
     }
 }
@@ -451,7 +451,7 @@ pub mod fe2d {
     }
 
     impl FE2D3 {
-        pub fn new(e: [f64; 2], thk: f64, x: Array2<f64>, is_shell: bool, ) -> Self {
+        pub fn new(x: Array2<f64>, e: [f64; 2], thk: f64, is_shell: bool, ) -> Self {
             let mut m = Array2::<f64>::zeros((0, 0));
             let mut x = x;
             if is_shell {
@@ -463,12 +463,12 @@ pub mod fe2d {
                     }
                 }
             }
-            Self { e, thk, x, is_shell, m }
+            Self { x, e, thk, is_shell, m }
         }
     }
     
     impl FE2D4 {
-        pub fn new(e: [f64; 2], thk: f64, x: Array2<f64>, is_shell: bool, ) -> Self {
+        pub fn new(x: Array2<f64>, e: [f64; 2], thk: f64, is_shell: bool, ) -> Self {
             let mut m = Array2::<f64>::zeros((0, 0));
             let mut x = x;
             if is_shell {
@@ -480,7 +480,7 @@ pub mod fe2d {
                     }
                 }
             }
-            Self { e, thk, x, is_shell, m }
+            Self { x, e, thk, is_shell, m }
         }
     }
 }
@@ -683,14 +683,14 @@ pub mod fe3d {
     
     
     impl FE3D4 {
-        pub fn new(e: [f64; 2], x: Array2<f64>) -> Self {
-            Self { e, x, }
+        pub fn new(x: Array2<f64>, e: [f64; 2]) -> Self {
+            Self { x, e, }
         }
     }
     
     impl FE3D8 {
-        pub fn new(e: [f64; 2], x: Array2<f64>) -> Self {
-            Self { e, x, }
+        pub fn new(x: Array2<f64>, e: [f64; 2]) -> Self {
+            Self { x, e, }
         }
     }
 }

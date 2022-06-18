@@ -1,10 +1,12 @@
 use json;
 use std::fs;
-use crate::fem::{Direct, FEM, FEMParameter, error::FemError};
+use crate::fem::{FEM, FEMPlasticity,  error::FemError, generate};
 use crate::fem::mesh::Mesh;
+use crate::fem::param::{Direct, FEMParameter};
 
 #[allow(dead_code)]
 pub fn read_json(file_name: &str) -> Result<(), FemError> {
+    let mut is_plasticity = false;
     let data = fs::read_to_string(file_name)?;
     let v = json::parse(data.as_str())?;
     let mesh_name = match v["Mesh"].as_str() {
@@ -36,8 +38,6 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
         };
         param.add_thickness_str(value, predicate);
     }
-
-
 
     for i in 0..v["YoungModulus"].len() {
         let value: &str = match v["YoungModulus"][i]["Value"].as_str() {
@@ -142,13 +142,37 @@ pub fn read_json(file_name: &str) -> Result<(), FemError> {
         param.add_variable(name, val);
     }
 
+    for i in 0..v["StressStrainCurve"].len() {
+        let mut value = Vec::<[f64; 2]>::new();
+        for j in 0..v["StressStrainCurve"][i]["Value"].len() {
+            let s = match v["StressStrainCurve"][i]["Value"][j][0].as_f64() {
+                Some(v) => v,
+                None => return Err(FemError::ValueError),
+            };
+            let e = match v["StressStrainCurve"][i]["Value"][j][1].as_f64() {
+                Some(v) => v,
+                None => return Err(FemError::ValueError),
+            };
+            value.push([s, e]);
+        }
+        let predicate: &str = match v["StressStrainCurve"][i]["Predicate"].as_str() {
+            Some(v) => v,
+            None => return Err(FemError::PredicateError),
+        };
+        param.add_stress_strain_curve_str(value, predicate);
+        is_plasticity = true;
+    }
 
     let res_name = match v["Result"].as_str() {
         Some(v) => v,
         None => return Err(FemError::ResultError),
     };
-    let mut fem = FEM::new(&mesh, &param);
-    fem.generate(res_name)
+
+    if is_plasticity {
+        generate::<FEMPlasticity>(&mesh, &param, res_name)
+    } else {
+        generate::<FEM>(&mesh, &param, res_name)
+    }
 }
 
 #[allow(dead_code)]
@@ -172,3 +196,4 @@ fn get_json_direct<'a>(name: &'a str, v: &json::JsonValue, i: usize) -> Result<D
         None => Err(FemError::IncorrectDirectError),
     }
 }
+

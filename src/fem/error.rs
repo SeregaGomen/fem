@@ -35,6 +35,8 @@ pub enum FemError {
     ValueError,
     PredicateError,
     IncorrectDirectError,
+    IncorrectParamError,
+    StressStrainCurveError,
     Other,
 }
 
@@ -65,8 +67,10 @@ impl fmt::Display for FemError {
             FemError::PoissonRatioError => write!(f, "Poisson's ratio not set"),
             FemError::DirectError => write!(f, "Direct not set"),
             FemError::IncorrectDirectError => write!(f, "Incorrect direct"),
+            FemError::IncorrectParamError => write!(f, "Incorrect parameter"),
             FemError::ValueError => write!(f, "Value not set"),
             FemError::PredicateError => write!(f, "Predicate not set"),
+            FemError::StressStrainCurveError => write!(f, "Stress-strain curve not set"),
             FemError::Other => write!(f, "Unknown error"),
         }
     }
@@ -131,8 +135,10 @@ impl Error for FemError {
             FemError::PoissonRatioError => Some(&FemError::PoissonRatioError),
             FemError::DirectError => Some(&FemError::DirectError),
             FemError::IncorrectDirectError => Some(&FemError::IncorrectDirectError),
+            FemError::IncorrectParamError => Some(&FemError::IncorrectParamError),
             FemError::ValueError => Some(&FemError::ValueError),
             FemError::PredicateError => Some(&FemError::PredicateError),
+            FemError::StressStrainCurveError => Some(&FemError::StressStrainCurveError),
             FemError::Other => None,
         }
     }

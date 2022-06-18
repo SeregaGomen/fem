@@ -11,6 +11,7 @@ pub trait Solver: Send {
     fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), FemError>; 
     fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), FemError>;
     fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError>;
+    fn mul_vector_value(&mut self, coef: f64);
     fn set_result_value(&mut self, index: usize, val: f64) -> Result<(), FemError> {
         for i in 0..self.size() {
             if i != index {
@@ -89,6 +90,13 @@ impl Solver for LzhSolver {
         self.b[index] += val;
         Ok(())
     }
+    fn mul_vector_value(&mut self, coef: f64) {
+        for i in 0..self.b.len() {
+            self.b[i] *= coef;
+        }     
+        println!("{:?}", self.b);
+   
+    }
     fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError> {
         self.a.solve(&self.b, eps)
     }
@@ -120,6 +128,11 @@ impl Solver for EnvSolver {
         }
         self.b[index] += val;
         Ok(())
+    }
+    fn mul_vector_value(&mut self, coef: f64) {
+        for i in 0..self.b.len() {
+            self.b[i] *= coef;
+        }        
     }
     fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError> {
         self.a.solve(&self.b, eps)

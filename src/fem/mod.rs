@@ -1,5 +1,6 @@
 pub mod error;
 pub mod mesh;
+pub mod param;
 mod fe;
 mod util;
 mod sparse;
@@ -7,239 +8,56 @@ mod solver;
 mod parser;
 mod msg;
 
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
-use bitflags::bitflags;
 use ndarray::{Array1, Array2, prelude::*};
 use std::time::Instant;
 use error::FemError;
 use mesh::Mesh;
-// use solver::{Solver, LzhSolver, EnvSolver};
 use solver::{Solver, LzhSolver};
 // use solver::{Solver, EnvSolver};
 use fe::FEType;
-use parser::Parser;
 use msg::Messenger;
+use param::{ParamType, Parameter, FEMParameter, Direct};
 
-bitflags! {
-    pub struct Direct: u8 {
-        const X = 0b00000001;
-        const Y = 0b00000010;
-        const Z = 0b00000100;
-    }
-}
-
-enum ParamValueType {
-    String,
-    Function,
-}
-
-struct ParamValue<'a> {
-    value_type: ParamValueType,
-    value_str: &'a str,
-    value_fun: Option<fn(f64, f64, f64) -> f64>,
-}
-
-impl<'a> ParamValue<'a> {
-    fn new_str(value: &'a str) -> Self {
-        Self { value_type: ParamValueType::String, value_str: value, value_fun: None }
-    }
-    fn new_fun(value: fn(f64, f64, f64) -> f64) -> Self {
-        Self { value_type: ParamValueType::Function, value_str: "", value_fun: Some(value) }
-    }
-} 
-
-#[derive(PartialEq)]
-pub enum ParamType {
-    BoundaryCondition,  // Граничное условие, заданноe выражением
-    VolumeLoad,         // Объемная нагрузка
-    SurfaceLoad,        // Поверхностная ...
-    ConcentratedLoad,   // Сосредоточенная ...
-    PressureLoad,       // Нагрузка давлением
-    Thickness,          // Толщина (сечение) элемента
-    YoungModulus,       // Модуль Юнга
-    PoissonsRatio,      // Коэффициент Пуассона
-    StressStrainCurve,  // Диаграмма материала
-}
-
-pub struct Parameter<'a> {
-    p_type: ParamType,
-    value: ParamValue<'a>,
-    predicate: ParamValue<'a>,
-    direct: Direct,
-}
-
-impl<'a> Parameter<'a> {
-    fn new_str(p_type: ParamType, val: &'a str, pred: &'a str, direct: Direct) -> Self {
-        let value = ParamValue::new_str(val);
-        let predicate = ParamValue::new_str(pred);
-        Self { p_type, value, predicate, direct }
-    }
-    fn new_fun(p_type: ParamType, val: fn(f64, f64, f64) -> f64, pred: fn(f64, f64, f64) -> f64, direct: Direct) -> Self {
-        let value = ParamValue::new_fun(val);
-        let predicate = ParamValue::new_fun(pred);
-        Self { p_type, value, predicate, direct }
-    }
-    fn get_value(&self, x: &ArrayView1<f64>, variables: &HashMap<&'a str, f64>) -> Result<f64, FemError> {
-        match self.value.value_type {
-            ParamValueType::String => {
-                let var_name = ["x", "y", "z"];
-                let mut parser = Parser::new();
-                for i in 0..x.len() {
-                    parser.set_variable(var_name[i], x[i]);    
-                }
-                for i in variables {
-                    parser.set_variable(i.0, *i.1);    
-                }
-                parser.set_expression(self.value.value_str)?;
-                parser.value()
-            }
-            ParamValueType::Function => {
-                if let Some(fun) = self.value.value_fun  {
-                    Ok(fun(x[0], if x.len() > 1 { x[1] } else { 0. }, if x.len() > 2 { x[2] } else { 0. })) 
-                } else {
-                    Err(FemError::InternalError)
-                }
-            }
-        }
-    }
-    fn get_predicate(&self, x: &ArrayView1<f64>, variables: &HashMap<&'a str, f64>) -> Result<bool, FemError> {
-        match self.predicate.value_type {
-            ParamValueType::String => {
-                if self.predicate.value_str.len() == 0 {
-                    Ok(true)
-                } else {
-                    let var_name = ["x", "y", "z"];
-                    let mut parser = Parser::new();
-                    for i in 0..x.len() {
-                        parser.set_variable(var_name[i], x[i]);    
-                    }
-                    for i in variables {
-                        parser.set_variable(i.0, *i.1);    
-                    }
-                    parser.set_expression(&self.predicate.value_str)?;
-                    Ok(if parser.value()? == 1. { true } else { false })
-                }
-            }
-            ParamValueType::Function => {
-                let res = if let Some(fun) = self.value.value_fun {
-                    fun(x[0], if x.len() > 1 { x[1] } else { 0. }, if x.len() > 2 { x[2] } else { 0. } )
-                } else {
-                    return Err(FemError::InternalError)
-                };
-                Ok(if res == 1. {true} else {false})
-            }
-        }
-    }
-}
-
-pub struct FEMParameter<'a> {
-    param: Vec<Parameter<'a>>,
-    eps: f64,
-    nthreads: usize,
-    variables: HashMap<&'a str, f64>,
-}
-
-impl<'a> FEMParameter<'a> {
-    pub fn new() -> Self {
-        Self { param: Vec::new(), eps: 1.0e-6, nthreads: 1, variables: HashMap::new() }
-    }
-    fn find_parameter(&self, param: ParamType) -> bool {
-        for i in &self.param {
-            if i.p_type == param {
-                return true;
-            }
-        }
-        false
-    }
-    pub fn set_num_threads(&mut self, nthreads: usize) {
-        self.nthreads = nthreads;
-    }
-    pub fn add_young_modulus_str(&mut self, value: &'a str, predicate: &'a str) {
-        self.param.push(Parameter::new_str(ParamType::YoungModulus, value, predicate, Direct::X | Direct::Y | Direct::Z));
-    }
-    pub fn add_young_modulus_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64) {
-        self.param.push(Parameter::new_fun(ParamType::YoungModulus, value, predicate, Direct::X | Direct::Y | Direct::Z));
-    }
-    pub fn add_poisons_ratio_str(&mut self, value: &'a str, predicate: &'a str) {
-        self.param.push(Parameter::new_str(ParamType::PoissonsRatio, value, predicate, Direct::X | Direct::Y | Direct::Z));
-    }
-    pub fn add_poisons_ratio_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64) {
-        self.param.push(Parameter::new_fun(ParamType::PoissonsRatio, value, predicate, Direct::X | Direct::Y | Direct::Z));
-    }
-    pub fn add_thickness_str(&mut self, value: &'a str, predicate: &'a str) {
-        self.param.push(Parameter::new_str(ParamType::Thickness, value, predicate, Direct::X | Direct::Y | Direct::Z));
-    }
-    pub fn add_thickness_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64) {
-        self.param.push(Parameter::new_fun(ParamType::Thickness, value, predicate, Direct::X | Direct::Y | Direct::Z));
-    }
-    pub fn set_eps(&mut self, eps: f64) {
-        self.eps = eps;
-    }
-    pub fn add_boundary_condition_str(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
-        self.param.push(Parameter::new_str(ParamType::BoundaryCondition, value, predicate, direct));
-    }
-    pub fn add_boundary_condition_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64, direct: Direct) {
-        self.param.push(Parameter::new_fun(ParamType::BoundaryCondition, value, predicate, direct));
-    }
-    pub fn add_concentrated_load_str(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
-        self.param.push(Parameter::new_str(ParamType::ConcentratedLoad, value, predicate, direct));
-    }
-    pub fn add_volume_load_str(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
-        self.param.push(Parameter::new_str(ParamType::VolumeLoad, value, predicate, direct));
-    }
-    pub fn add_volume_load_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64, direct: Direct) {
-        self.param.push(Parameter::new_fun(ParamType::VolumeLoad, value, predicate, direct));
-    }
-    pub fn add_surface_load_str(&mut self, value: &'a str, predicate: &'a str, direct: Direct) {
-        self.param.push(Parameter::new_str(ParamType::SurfaceLoad, value, predicate, direct));
-    }
-    pub fn add_surface_load_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64, direct: Direct) {
-        self.param.push(Parameter::new_fun(ParamType::SurfaceLoad, value, predicate, direct));
-    }
-    pub fn add_pressure_load_str(&mut self, value: &'a str, predicate: &'a str) {
-        self.param.push(Parameter::new_str(ParamType::PressureLoad, value, predicate, Direct::X | Direct::Y | Direct::Z));
-    }
-    pub fn add_pressure_load_fun(&mut self, value: fn(f64, f64, f64) -> f64, predicate: fn(f64, f64, f64) -> f64) {
-        self.param.push(Parameter::new_fun(ParamType::PressureLoad, value, predicate, Direct::X | Direct::Y | Direct::Z));
-    }
-    pub fn add_variable(&mut self, name: &'a str, value: f64) {
-        self.variables.insert(name, value);
-    }
-}
 
 
 pub trait FiniteElementMethod<'a>: Send + Sync {
+    fn new(mesh: &'a Mesh, param: &'a FEMParameter) -> Self;
+    fn generate(&mut self, res_name: &str) -> Result<(), FemError>;
     fn get_param(&self) -> Arc<&FEMParameter<'a>>;
     fn get_mesh(&self) -> Arc<&Mesh>;
+    fn get_fe_param(&self, i: usize) -> Result<(Array2<f64>, [f64; 2], f64), FemError> {
+        let x = self.get_mesh().get_fe_coord(i);
+        let e = [self.get_param_value(&x, ParamType::YoungModulus)?, self.get_param_value(&x, ParamType::PoissonsRatio)?];
+        let thk = self.get_param_value(&x, ParamType::Thickness)?;
+        Ok((x, e, thk))
+    }
     fn calc_fe_matrix(&self, i: usize) -> Result<Array2<f64>, FemError> {
         use crate::fem::fe::fe1d::FiniteElement1D;
         use crate::fem::fe::fe2d::FiniteElement2D;
         use crate::fem::fe::fe3d::FiniteElement3D;
 
-        let x = self.get_mesh().get_fe_coord(i);
-        let e = [self.get_param_value(&x, ParamType::YoungModulus)?, self.get_param_value(&x, ParamType::PoissonsRatio)?];
-        let thk = self.get_param_value(&x, ParamType::Thickness)?;
+        let fe_param = self.get_fe_param(i)?;
         match self.get_mesh().fe_type {   
             FEType::FE1D2 => {
-                let mut fe = fe::fe1d::FE1D2::new(e, thk, x);
+                let mut fe = fe::fe1d::FE1D2::new(fe_param.0, fe_param.1, fe_param.2);
                 fe.generate()
             }
             FEType::FE2D3 | FEType::FE3D3S  => {
-                let mut fe = fe::fe2d::FE2D3::new(e, thk, x, if self.get_mesh().fe_type == FEType::FE2D3 { false } else { true });
+                let mut fe = fe::fe2d::FE2D3::new(fe_param.0, fe_param.1, fe_param.2, if self.get_mesh().fe_type == FEType::FE2D3 { false } else { true });
                 fe.generate()
             }
             FEType::FE2D4 | FEType::FE3D4S => {
-                let mut fe = fe::fe2d::FE2D4::new(e, thk, x, if self.get_mesh().fe_type == FEType::FE2D4 { false } else { true });
+                let mut fe = fe::fe2d::FE2D4::new(fe_param.0, fe_param.1, fe_param.2, if self.get_mesh().fe_type == FEType::FE2D4 { false } else { true });
                 fe.generate()
             }
             FEType::FE3D4 => {
-                let mut fe = fe::fe3d::FE3D4::new(e, x);
+                let mut fe = fe::fe3d::FE3D4::new(fe_param.0, fe_param.1);
                 fe.generate()
             }
             FEType::FE3D8 => {
-                let mut fe = fe::fe3d::FE3D8::new(e, x);
+                let mut fe = fe::fe3d::FE3D8::new(fe_param.0, fe_param.1);
                 fe.generate()
             }
         } 
@@ -288,15 +106,9 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             println!("{}:\t{}\t{}", names[i], util::fmt_f64(util::get_min(res.row(i)), 12, 5, 2), util::fmt_f64(util::get_max(res.row(i)), 12, 5, 2));
         }
     }
-    fn calc_results(&self, u: &Array1<f64>, res_name: &str) -> Result<(), FemError> {
-        let res = Mutex::new(Array2::zeros((self.num_results() + 1, self.get_mesh().num_vertex)));
+    fn calc_results(&self, u: &Array1<f64>) -> Result<Array2<f64>, FemError> {
+        let res = Mutex::new(Array2::<f64>::zeros((self.num_results() - self.get_mesh().freedom, self.get_mesh().num_vertex)));
         let counter = Mutex::new(Array1::<i32>::zeros(self.get_mesh().num_vertex));
-        // Копирование результатов расчета (перемещений)
-        for i in 0..self.get_mesh().freedom {
-            for j in 0..self.get_mesh().num_vertex {
-                res.lock().unwrap()[[i, j]] = u[j * self.get_mesh().freedom + i];
-            }
-        }
         // Вычисление деформаций, напряжений, ...
         let msg = Mutex::new(Messenger::new("Calculation of standard finite element results", 1, self.get_mesh().num_fe as i64, 5));
         (0..self.get_mesh().num_fe).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
@@ -311,7 +123,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             let fe_res = self.calc_fe_results(i, fe_u)?; 
             for j in 0..self.num_results() - self.get_mesh().freedom {
                 for k in 0..self.get_mesh().fe.shape()[1] {
-                    res.lock().unwrap()[[j + self.get_mesh().freedom, self.get_mesh().fe[[i, k]]]] += fe_res[[j, k]];
+                    res.lock().unwrap()[[j, self.get_mesh().fe[[i, k]]]] += fe_res[[j, k]];
                     if j == 0 {
                         counter.lock().unwrap()[self.get_mesh().fe[[i, k]]] += 1;
                     }
@@ -319,28 +131,35 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             }
             Ok(())
         })?;
-        let mut res = res.lock().unwrap();
+
+        let mut results = Array2::zeros((self.num_results() + 1, self.get_mesh().num_vertex));
+        let res = res.lock().unwrap();
+        // Копирование результатов расчета (перемещений)
+        for i in 0..self.get_mesh().freedom {
+            for j in 0..self.get_mesh().num_vertex {
+                results[[i, j]] = u[j * self.get_mesh().freedom + i];
+            }
+        }
         let counter = counter.lock().unwrap();
         // Осредняем результаты
-        for i in self.get_mesh().freedom..self.num_results() {
-            for j in 0..self.get_mesh().num_vertex {
-                res[[i, j]] /= counter[j] as f64;
+        for i in 0..res.shape()[0] {
+            for j in 0..res.shape()[1] {
+                results[[i + self.get_mesh().freedom, j]] = res[[i, j]] / counter[j] as f64;
             }
         }
         // Вычисляем интенсивность напряжений
         let m_sqrt1_2 = 0.5 * 2_f64.sqrt();
         for i in 0..self.get_mesh().num_vertex {
-            res[[self.num_results(), i]] = m_sqrt1_2 * match self.get_mesh().fe_type {
-                FEType::FE1D2 => res[[2, i]].abs(),
-                FEType::FE2D3 | FEType::FE2D4 => f64::sqrt(f64::powf(res[[5, i]] - res[[6, i]], 2.0) + 6.0 * (f64::powf(res[[7, i]], 2.0))),
-                FEType::FE3D4 | FEType::FE3D8 => f64::sqrt(f64::powf(res[[9, i]] - res[[10, i]], 2.0) + f64::powf(res[[9, i]] - res[[11, i]], 2.0) +
-                    f64::powf(res[[11, i]] - res[[12, i]], 2.0) + 6.0 * (f64::powf(res[[12, i]], 2.0) + f64::powf(res[[13, i]], 2.0) + f64::powf(res[[14, i]], 2.0))),
-                FEType::FE3D3S | FEType::FE3D4S => f64::sqrt(f64::powf(res[[12, i]] - res[[13, i]], 2.0) + f64::powf(res[[12, i]] - res[[14, i]], 2.0) +
-                    f64::powf(res[[13, i]] - res[[14, i]], 2.0) + 6.0 * (f64::powf(res[[15, i]], 2.0) + f64::powf(res[[16, i]], 2.0) + f64::powf(res[[17, i]], 2.0))),
+            results[[self.num_results(), i]] = m_sqrt1_2 * match self.get_mesh().fe_type {
+                FEType::FE1D2 => results[[2, i]].abs(),
+                FEType::FE2D3 | FEType::FE2D4 => f64::sqrt(f64::powf(results[[5, i]] - results[[6, i]], 2.0) + 6.0 * (f64::powf(results[[7, i]], 2.0))),
+                FEType::FE3D4 | FEType::FE3D8 => f64::sqrt(f64::powf(results[[9, i]] - results[[10, i]], 2.0) + f64::powf(results[[9, i]] - results[[11, i]], 2.0) +
+                    f64::powf(results[[11, i]] - results[[12, i]], 2.0) + 6.0 * (f64::powf(results[[12, i]], 2.0) + f64::powf(results[[13, i]], 2.0) + f64::powf(results[[14, i]], 2.0))),
+                FEType::FE3D3S | FEType::FE3D4S => f64::sqrt(f64::powf(results[[12, i]] - results[[13, i]], 2.0) + f64::powf(results[[12, i]] - results[[14, i]], 2.0) +
+                    f64::powf(results[[13, i]] - results[[14, i]], 2.0) + 6.0 * (f64::powf(results[[15, i]], 2.0) + f64::powf(results[[16, i]], 2.0) + f64::powf(results[[17, i]], 2.0))),
             };
         }
-        self.print_summary(&res);
-        self.save_results(&res, res_name)
+        Ok(results)
     }
     fn get_param_value(&self, x: &Array2<f64>, param_type: ParamType) -> Result<f64, FemError> {
         let mut val = 0.;
@@ -349,7 +168,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
                 if !it.get_predicate(&x.row(0), &self.get_param().variables)? {
                     continue;
                 }                
-                val = it.get_value(&x.row(0), &self.get_param().variables)?;
+                val = it.get_scalar_value(&x.row(0), &self.get_param().variables)?;
                 break;
             }
         }
@@ -360,28 +179,26 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         use crate::fem::fe::fe2d::FiniteElement2D;
         use crate::fem::fe::fe3d::FiniteElement3D;
 
-        let x = self.get_mesh().get_fe_coord(i);
-        let e: [f64; 2] = [self.get_param_value(&x, ParamType::YoungModulus)?, self.get_param_value(&x, ParamType::PoissonsRatio)?];
-        let thk = self.get_param_value(&x, ParamType::Thickness)?;
+        let fe_param = self.get_fe_param(i)?;
         match self.get_mesh().fe_type {   
             FEType::FE1D2 => {
-                let fe = fe::fe1d::FE1D2::new(e, thk, x);
+                let fe = fe::fe1d::FE1D2::new(fe_param.0, fe_param.1, fe_param.2);
                 fe.calc(&u)
             }
             FEType::FE2D3 | FEType::FE3D3S => {
-                let fe = fe::fe2d::FE2D3::new(e, thk, x, if self.get_mesh().fe_type == FEType::FE2D3 { false } else { true });
+                let fe = fe::fe2d::FE2D3::new(fe_param.0, fe_param.1, fe_param.2, if self.get_mesh().fe_type == FEType::FE2D3 { false } else { true });
                 fe.calc(&u)
             }
             FEType::FE2D4 | FEType::FE3D4S => {
-                let fe = fe::fe2d::FE2D4::new(e, thk, x, if self.get_mesh().fe_type == FEType::FE2D4 { false } else { true });
+                let fe = fe::fe2d::FE2D4::new(fe_param.0, fe_param.1, fe_param.2, if self.get_mesh().fe_type == FEType::FE2D4 { false } else { true });
                 fe.calc(&u)
             }
             FEType::FE3D4 => {
-                let fe = fe::fe3d::FE3D4::new(e, x);
+                let fe = fe::fe3d::FE3D4::new(fe_param.0, fe_param.1);
                 fe.calc(&u)
             }
             FEType::FE3D8 => {
-                let fe = fe::fe3d::FE3D8::new(e, x);
+                let fe = fe::fe3d::FE3D8::new(fe_param.0, fe_param.1);
                 fe.calc(&u)
             }
         } 
@@ -391,89 +208,48 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         use std::fs::File;
         use std::io::{BufWriter, prelude::*};
                 
-        let file: File = match File::create(file_name) {
-            Err(_) => return Err(FemError::OpenFile),
-            Ok(file) => file,
-        };
+        let file = File::create(file_name)?;
         let mut stream = BufWriter::new(file);
         // Запись сигнатуры
-        if !write!(stream, "FEM Solver Results File\n").is_ok() {
-            return Err(FemError::WriteFile);
-        }
+        write!(stream, "FEM Solver Results File\n")?;
         // Вывод сетки
-        if !write!(stream, "Mesh\n").is_ok() {
-            return Err(FemError::WriteFile);
-        }
-        if !write!(stream, "{}\n", self.get_mesh().fe_type).is_ok() {
-            return Err(FemError::WriteFile);
-        }
-        if !write!(stream, "{}\n", self.get_mesh().num_vertex).is_ok() {
-            return Err(FemError::WriteFile);
-        }
+        write!(stream, "Mesh\n")?;
+        write!(stream, "{}\n", self.get_mesh().fe_type)?;
+        write!(stream, "{}\n", self.get_mesh().num_vertex)?;
         for i in 0..self.get_mesh().x.shape()[0] {
             for j in 0..self.get_mesh().x.shape()[1] {
-                if !write!(stream, "{} ", self.get_mesh().x[[i, j]]).is_ok() {
-                    return Err(FemError::WriteFile);
-                }
+                write!(stream, "{} ", self.get_mesh().x[[i, j]])?;
             }
-            if !write!(stream, "\n").is_ok() {
-                return Err(FemError::WriteFile);
-            }
+            write!(stream, "\n")?;
         }
-        if !write!(stream, "{}\n", self.get_mesh().num_fe).is_ok() {
-            return Err(FemError::WriteFile);
-        }
+        write!(stream, "{}\n", self.get_mesh().num_fe)?;
         for i in 0..self.get_mesh().fe.shape()[0] {
             for j in 0..self.get_mesh().fe.shape()[1] {
-                if !write!(stream, "{} ", self.get_mesh().fe[[i, j]]).is_ok() {
-                    return Err(FemError::WriteFile);
-                }
+                write!(stream, "{} ", self.get_mesh().fe[[i, j]])?;
             }
-            if !write!(stream, "\n").is_ok() {
-                return Err(FemError::WriteFile);
-            }
+            write!(stream, "\n")?;
         }
         if self.get_mesh().is_shell() {
-            if !write!(stream, "0\n").is_ok() {
-                return Err(FemError::WriteFile);
-            }
+            write!(stream, "0\n")?;
         } else {
-            if !write!(stream, "{}\n", self.get_mesh().num_be).is_ok() {
-                return Err(FemError::WriteFile);
-            }
+            write!(stream, "{}\n", self.get_mesh().num_be)?;
             for i in 0..self.get_mesh().be.shape()[0] {
                 for j in 0..self.get_mesh().be.shape()[1] {
-                    if !write!(stream, "{} ", self.get_mesh().be[[i, j]]).is_ok() {
-                        return Err(FemError::WriteFile);
-                    }
+                    write!(stream, "{} ", self.get_mesh().be[[i, j]])?;
                 }
-                if !write!(stream, "\n").is_ok() {
-                    return Err(FemError::WriteFile);
-                }
+                write!(stream, "\n")?;
             }
         }
         // Запись результатов расчета
-        if !write!(stream, "Results\n").is_ok() {
-            return Err(FemError::WriteFile);
-        }
+        write!(stream, "Results\n")?;
         let now = Utc::now();
-        if !write!(stream, "{:02}.{:02}.{:4} - {:02}:{:02}:{:02}\n",now.day(), now.month(), now.year(), now.hour(), now.minute(), now.second()).is_ok() {
-            return Err(FemError::WriteFile);
-        }
-        if !write!(stream, "{}\n", self.num_results()).is_ok() {
-            return Err(FemError::WriteFile);
-        }
+        write!(stream, "{:02}.{:02}.{:4} - {:02}:{:02}:{:02}\n",now.day(), now.month(), now.year(), now.hour(), now.minute(), now.second())?;
+        write!(stream, "{}\n", self.num_results())?;
         for i in 0..res.shape()[0] {
-            if !write!(stream, "{}\n", self.fun_names()[i]).is_ok() {
-                return Err(FemError::WriteFile);
-            }
-            if !write!(stream, "0\n{}\n", res.shape()[1]).is_ok() {
-                return Err(FemError::WriteFile);
-            }
+            write!(stream, "{}\n", self.fun_names()[i])?;
+            write!(stream, "0\n{}\n", res.shape()[1])?;
             for j in 0..res.shape()[1] {
-                if !write!(stream, "{}\n", res[[i, j]]).is_ok() {
-                    return Err(FemError::WriteFile);
-                }
+                write!(stream, "{}\n", res[[i, j]])?;
             }
         }
         Ok(())
@@ -498,13 +274,13 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         let msg = Mutex::new(Messenger::new("Using of boundary conditions", 1, self.get_mesh().num_vertex as i64, 5));
         (0..self.get_mesh().num_vertex).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
             msg.lock().unwrap().add_progress();
+            let x = self.get_mesh().x.row(i);
             for it in &self.get_param().param {
                 if it.p_type == ParamType::BoundaryCondition {
-                    let x = self.get_mesh().x.row(i);
                     if it.get_predicate(&x, &self.get_param().variables)? == false {
                         continue;
                     }
-                    let val = it.get_value(&x, &self.get_param().variables)?;
+                    let val = it.get_scalar_value(&x, &self.get_param().variables)?;
                     if it.direct.contains(Direct::X) {
                         // solver.lock().unwrap().set_result_value((i + l) * self.mesh.freedom + 0, val)?;    
                         solver.lock().unwrap().set_result_value((i) * self.get_mesh().freedom + 0, val)?;    
@@ -527,13 +303,13 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             let msg = Mutex::new(Messenger::new("Calculation of concentrated loads", 1, self.get_mesh().num_vertex as i64, 5));
             (0..self.get_mesh().num_vertex).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
                 msg.lock().unwrap().add_progress();
+                let x = self.get_mesh().x.row(i);
                 for it in &self.get_param().param {
                     if it.p_type == ParamType::ConcentratedLoad {
-                        let x = self.get_mesh().x.row(i);
                         if it.get_predicate(&x, &self.get_param().variables)? == false {
                             continue;
                         }
-                        let val = it.get_value(&x, &self.get_param().variables)?;
+                        let val = it.get_scalar_value(&x, &self.get_param().variables)?;
                         if it.direct.contains(Direct::X) {
                             solver.lock().unwrap().set_vector_value((i) * self.get_mesh().freedom + 0, val)?;    
                         }
@@ -555,15 +331,15 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             let msg = Mutex::new(Messenger::new("Calculation of volume loads", 1, self.get_mesh().num_fe as i64, 5));
             (0..self.get_mesh().num_fe).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
                 msg.lock().unwrap().add_progress();
+                let x = self.get_mesh().get_fe_coord(i);
                 for it in &self.get_param().param {
                     if it.p_type == ParamType::VolumeLoad {
-                        let x = self.get_mesh().get_fe_coord(i);
                         if !self.check_elem(&x, &it)? {
                             continue;
                         }                        
                         let share = self.volume_load_share() * self.get_mesh().fe_volume(i); 
                         for j in 0..self.get_mesh().fe.shape()[1] {
-                            let val = it.get_value(&x.row(j), &self.get_param().variables)? * share[j];
+                            let val = it.get_scalar_value(&x.row(j), &self.get_param().variables)? * share[j];
                             if it.direct.contains(Direct::X) {
                                 solver.lock().unwrap().add_vector_value(self.get_mesh().fe[[i, j]] * self.get_mesh().freedom + 0, val)?;    
                             }
@@ -586,16 +362,16 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             let msg = Mutex::new(Messenger::new("Calculation of surface loads", 1, self.get_mesh().num_be as i64, 5));
             (0..self.get_mesh().num_be).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
                 msg.lock().unwrap().add_progress();
+                let x = self.get_mesh().get_be_coord(i);
                 for it in &self.get_param().param {
                     if it.p_type == ParamType::PressureLoad || it.p_type == ParamType::SurfaceLoad {
-                        let x = self.get_mesh().get_be_coord(i);
                         if !self.check_elem(&x, &it)? {
                             continue;
                         }                        
                         let share = self.surface_load_share() * self.get_mesh().be_volume(i); 
                         let normal = if it.p_type == ParamType::PressureLoad { self.get_mesh().be_normal(i) } else { array![1., 1., 1.] };
                         for j in 0..self.get_mesh().be.shape()[1] {
-                            let val = it.get_value(&x.row(j), &self.get_param().variables)? * share[j];
+                            let val = it.get_scalar_value(&x.row(j), &self.get_param().variables)? * share[j];
                             if it.direct.contains(Direct::X) {
                                 solver.lock().unwrap().add_vector_value(self.get_mesh().be[[i, j]] * self.get_mesh().freedom + 0, val * normal[0])?;    
                             }
@@ -634,20 +410,16 @@ pub struct FEM<'a> {
 }
 
 impl<'a> FiniteElementMethod<'a> for FEM<'a> {
+    fn new(mesh: &'a Mesh, param: &'a FEMParameter) -> Self {
+        Self {mesh, param}
+    }
     fn get_param(&self) -> Arc<&FEMParameter<'a>> {
         Arc::new(self.param)
     }
     fn get_mesh(&self) -> Arc<&Mesh> {
         Arc::new(self.mesh)
     }
-}
-
-
-impl<'a> FEM<'a> {
-    pub fn new(mesh: &'a Mesh, param: &'a FEMParameter) -> Self {
-        Self {mesh, param}
-    }
-    pub fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
+    fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
         let time = Instant::now();
         let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
@@ -655,41 +427,182 @@ impl<'a> FEM<'a> {
         self.set_load(&mut solver)?;
         self.set_global_matrix(&mut solver)?;
         self.set_boundary_condition(&mut solver)?;
-        self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?, res_name)?;
+        let res = self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?)?;
+        self.print_summary(&res);
+        self.save_results(&res, res_name)?;
         println!("Lead time: {:.2?}", time.elapsed());
         Ok(())
     }
- }
+}
+
+
+impl<'a> FEM<'a> {}
 
 pub struct FEMPlasticity<'a> {
     mesh: &'a Mesh,
     param: &'a FEMParameter<'a>,
+    iter_no: usize,
+    ei: Mutex<(Vec<f64>, Vec<usize>)>,
+    si: Mutex<Vec<f64>>,
+    is_global_iteration_stop: Mutex<bool>,
+    is_local_iteration_stop: Mutex<bool>,
 }
 
 impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
+    fn new(mesh: &'a Mesh, param: &'a FEMParameter) -> Self {
+        Self {mesh, param, iter_no: 1, ei: Mutex::new((Vec::new(), Vec::new())), si: Mutex::new(Vec::new()), is_global_iteration_stop: Mutex::new(false), is_local_iteration_stop: Mutex::new(false)}
+    }
     fn get_param(&self) -> Arc<&FEMParameter<'a>> {
         Arc::new(self.param)
     }
     fn get_mesh(&self) -> Arc<&Mesh> {
         Arc::new(self.mesh)
     }
-}
-
-
-impl<'a> FEMPlasticity<'a> {
-    pub fn new(mesh: &'a Mesh, param: &'a FEMParameter) -> Self {
-        Self {mesh, param}
-    }
-    pub fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
+    fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
         let time = Instant::now();
-        let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
         // let mut solver = Mutex::new(EnvSolver::new(&self.mesh));
+        let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
+
+        // Предварительное вычисление компонент нагрузки
         self.set_load(&mut solver)?;
-        self.set_global_matrix(&mut solver)?;
-        self.set_boundary_condition(&mut solver)?;
-        self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?, res_name)?;
-        println!("Lead time: {:.2?}", time.elapsed());
+        let max_ssc = self.get_min_stress()?;
+
+        let step = 0.1;
+        let mut coef = 1.0;
+        let mut add_count = 0.0;
+        let mut is_load_set = false;
+
+        *self.ei.lock().unwrap() = (vec![0.; self.get_mesh().fe.shape()[0]], vec![0; self.get_mesh().fe.shape()[0]]);
+        *self.si.lock().unwrap() = vec![0.; self.get_mesh().x.shape()[0]];
+        // Итерационный процесс линеаризации упруго-пластической задачи
+        loop {
+            *self.is_local_iteration_stop.lock().unwrap() = true;
+            // Формирование ГМЖ
+            self.set_global_matrix(&mut solver)?;
+            // Учет краевых условий
+            self.set_boundary_condition(&mut solver)?;
+            let res = self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?)?;
+            self.print_summary(&res);
+            println!("Load: x {}", coef * (1.0 + add_count * step));
+            println!("Iterate: {}\n", self.iter_no);
+
+            if self.iter_no == 1 {
+                // Вычисление интенсивности напряжений
+                let max_si = util::get_max(res.row(res.shape()[0] - 1));
+                if max_si > max_ssc {
+                    // Задана слишком большая первоначальная нагрузка, уменьшаем ее на порядок
+                    coef *= 0.1;
+                    solver.lock().unwrap().mul_vector_value(0.1);
+                    self.iter_no = 0;
+                } else {
+                    if is_load_set == false {
+                        // Вычисляем поправочный коэффициент для "пропуска" упругой зоны
+                        let load_factor = 0.95 * (max_ssc / max_si);
+                        solver.lock().unwrap().mul_vector_value(load_factor);
+                        coef *= load_factor;
+                        self.iter_no = 0;
+                        is_load_set = true;
+                    } else {
+                        // Устанавливаем нагрузку в значение "шаг по нагрузке"
+                        solver.lock().unwrap().mul_vector_value(step);
+                    }
+                }
+            }
+
+            self.iter_no += 1;
+            if self.iter_no > 1 {
+                add_count += 1.0;
+            }
+            ////////////////////
+            // if self.iter_no > 10 {
+            //     break;
+            // }
+
+            if *self.is_global_iteration_stop.lock().unwrap() == true {
+                self.save_results(&res, res_name)?;
+                println!("Lead time: {:.2?}", time.elapsed());
+                break;
+            }
+        }
+
         Ok(())
     }
- }
+    fn get_fe_param(&self, i: usize) -> Result<(Array2<f64>, [f64; 2], f64), FemError> {
+        let x = self.get_mesh().get_fe_coord(i);
+        let mut e = [self.get_param_value(&x, ParamType::YoungModulus)?, self.get_param_value(&x, ParamType::PoissonsRatio)?];
+        let thk = self.get_param_value(&x, ParamType::Thickness)?;
+
+        if self.iter_no > 1 {
+            // Нелинейный случай
+            let mut fe_si = self.si.lock().unwrap()[self.get_mesh().fe[[i, 0]]];
+            // Загружаем диаграмму деформирования, соответствующую текущему КЭ
+            let x = self.get_mesh().get_fe_coord(i);
+            let mut ssc = &Vec::<[f64; 2]>::new();
+            for it in &self.get_param().param {
+                if it.p_type == ParamType::StressStrainCurve {
+                    if !self.check_elem(&x, &it)? {
+                        continue;
+                    }                        
+                    ssc = it.get_vector_value()?;
+                    break;
+                }
+            }
+            if ssc.len() == 0 {
+                return Err(FemError::StressStrainCurveError);
+            }
+            // Определяем минимальную по КЭ интенсивность наряжений
+            for j in 1..self.get_mesh().fe.shape()[1] {
+                if fe_si < self.si.lock().unwrap()[self.get_mesh().fe[[i, j]]] {
+                    fe_si = self.si.lock().unwrap()[self.get_mesh().fe[[i, j]]];            
+                }
+            }
+            // Поиск в таблице свойств материала соответствующего напряжения
+            let mut index = 0;
+            if fe_si >= ssc[1][0] {
+                for j in 1..ssc.len() {
+                    if fe_si > ssc[j - 1][0] && fe_si <= ssc[j][0] { 
+                        index = j;
+                        break 
+                    }
+                }
+            }
+            if index == ssc.len() {
+                // Достигнут предел текучести
+                index -= 1;
+                *self.is_global_iteration_stop.lock().unwrap() = true;
+            }
+            let new_e = if index != self.ei.lock().unwrap().1[i] {
+                (ssc[index][0] / ssc[index][1] - ssc[self.ei.lock().unwrap().1[i]][0] / ssc[self.ei.lock().unwrap().1[i]][1]).abs()
+            } else {
+                if self.ei.lock().unwrap().0[i] == 0.0 { e[0] } else { self.ei.lock().unwrap().0[i] }
+            };
+            e[0] = new_e;
+            // Проверка на изменение модуля упругости по сравнению с предыдущей итерацией
+            if index != self.ei.lock().unwrap().1[i] { *self.is_local_iteration_stop.lock().unwrap() = false }
+            // Запоминаем рассчитанное значение модуля упругости и индекс
+            self.ei.lock().unwrap().0[i] = new_e;
+            self.ei.lock().unwrap().1[i] = index;
+        }
+        Ok((x, e, thk))
+    }
+}
+
+impl<'a> FEMPlasticity<'a> {
+    fn get_min_stress(&self) -> Result<f64, FemError> {
+        let mut res = f64::MAX;
+        for i in &self.param.param {
+            if i.p_type == ParamType::StressStrainCurve {
+                let ssc = i.get_vector_value()?;
+                if ssc.len() == 0 { return Err(FemError::StressStrainCurveError) }
+                if ssc[1][0] < res { res = ssc[1][0] } 
+            }
+        }
+        Ok(res)
+    }
+}
+
+pub fn generate<'a, F>(mesh: &'a Mesh, param: &'a FEMParameter, res_name: &str) -> Result<(), FemError> where F: FiniteElementMethod<'a> {
+    let mut fem = F::new(mesh, param);
+    fem.generate(res_name)
+}
