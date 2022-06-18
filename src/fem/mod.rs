@@ -524,6 +524,7 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
                 println!("Lead time: {:.2?}", time.elapsed());
                 break;
             }
+            solver.lock().unwrap().clear_matrix();
         }
 
         Ok(())

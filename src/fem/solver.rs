@@ -24,6 +24,8 @@ pub trait Solver: Send {
         self.set_vector_value(index, val * self.get_matrix_value(index, index)?)?;
         Ok(())
     }
+    fn clear_matrix(&mut self);
+    fn clear_vector(&mut self);
 }
 
 pub struct LzhSolver {
@@ -98,6 +100,12 @@ impl Solver for LzhSolver {
     fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError> {
         self.a.solve(&self.b, eps)
     }
+    fn clear_matrix(&mut self) {
+        self.a.clear();
+    }
+    fn clear_vector(&mut self) {
+        self.b = Array1::zeros(self.b.len());
+    }
 }
 
 impl Solver for EnvSolver {
@@ -134,5 +142,11 @@ impl Solver for EnvSolver {
     }
     fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError> {
         self.a.solve(&self.b, eps)
+    }
+    fn clear_matrix(&mut self) {
+        self.a.clear();
+    }
+    fn clear_vector(&mut self) {
+        self.b = Array1::zeros(self.b.len());
     }
 }

@@ -10,6 +10,7 @@ pub trait SparseMatrix {
     fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
     fn get_value(&self, index1: usize, index2: usize) -> Result<f64, FemError>;
     fn solve(&mut self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, FemError>;
+    fn clear(&mut self);
 }
 
 // Разреженная матрица, хранящая только ненулевые элементы
@@ -46,6 +47,13 @@ impl SparseMatrix for MapSparseMatrix {
     }
     fn solve(&mut self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, FemError> {
         self.lzh_solve(rhs, eps)
+    }
+    fn clear(&mut self) {
+        for i in &mut self.data {
+            for j in i {
+                *j = 0.0;
+            }
+        }        
     }
 }
 
@@ -99,6 +107,14 @@ impl SparseMatrix for EnvSparseMatrix {
         // Вычисление x: (L(t)x = y)
         let x = self.euslv(self.size, &self.diag, &self.env, &self.xenv, &y);
         Ok(Array::from_vec(x))
+    }
+    fn clear(&mut self) {
+        for i in &mut self.diag {
+            *i = 0.0;
+        }        
+        for i in &mut self.env {
+            *i = 0.0;
+        }        
     }
 }
 
