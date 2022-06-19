@@ -442,15 +442,15 @@ pub struct FEMPlasticity<'a> {
     mesh: &'a Mesh,
     param: &'a FEMParameter<'a>,
     iter_no: usize,
+    res: Array2<f64>,
     ei: Mutex<(Vec<f64>, Vec<usize>)>,
-    si: Mutex<Vec<f64>>,
     is_global_iteration_stop: Mutex<bool>,
     is_local_iteration_stop: Mutex<bool>,
 }
 
 impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
     fn new(mesh: &'a Mesh, param: &'a FEMParameter) -> Self {
-        Self {mesh, param, iter_no: 1, ei: Mutex::new((Vec::new(), Vec::new())), si: Mutex::new(Vec::new()), is_global_iteration_stop: Mutex::new(false), is_local_iteration_stop: Mutex::new(false)}
+        Self {mesh, param, iter_no: 1, res: Array2::<f64>::zeros((0, 0)), ei: Mutex::new((Vec::new(), Vec::new())), is_global_iteration_stop: Mutex::new(false), is_local_iteration_stop: Mutex::new(false)}
     }
     fn get_param(&self) -> Arc<&FEMParameter<'a>> {
         Arc::new(self.param)
@@ -468,13 +468,12 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
         self.set_load(&mut solver)?;
         let max_ssc = self.get_min_stress()?;
 
-        let step = 0.1;
+        let step = 0.05;
         let mut coef = 1.0;
         let mut add_count = 0.0;
-        let mut is_load_set = false;
+        let mut count = 1;
 
         *self.ei.lock().unwrap() = (vec![0.; self.get_mesh().fe.shape()[0]], vec![0; self.get_mesh().fe.shape()[0]]);
-        *self.si.lock().unwrap() = vec![0.; self.get_mesh().x.shape()[0]];
         // Итерационный процесс линеаризации упруго-пластической задачи
         loop {
             *self.is_local_iteration_stop.lock().unwrap() = true;
@@ -482,45 +481,40 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
             self.set_global_matrix(&mut solver)?;
             // Учет краевых условий
             self.set_boundary_condition(&mut solver)?;
-            let res = self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?)?;
-            self.print_summary(&res);
+            self.res = self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?)?;
+            self.print_summary(&self.res);
             println!("Load: x {}", coef * (1.0 + add_count * step));
-            println!("Iterate: {}\n", self.iter_no);
+            println!("Iterate: {}\n", count);
+            count += 1;
 
             if self.iter_no == 1 {
                 // Вычисление интенсивности напряжений
-                let max_si = util::get_max(res.row(res.shape()[0] - 1));
+                let max_si = util::get_max(self.res.row(self.res.shape()[0] - 1));
                 if max_si > max_ssc {
                     // Задана слишком большая первоначальная нагрузка, уменьшаем ее на порядок
                     coef *= 0.1;
                     solver.lock().unwrap().mul_vector_value(0.1);
                     self.iter_no = 0;
                 } else {
-                    if is_load_set == false {
-                        // Вычисляем поправочный коэффициент для "пропуска" упругой зоны
-                        let load_factor = 0.95 * (max_ssc / max_si);
-                        solver.lock().unwrap().mul_vector_value(load_factor);
-                        coef *= load_factor;
-                        self.iter_no = 0;
-                        is_load_set = true;
-                    } else {
-                        // Устанавливаем нагрузку в значение "шаг по нагрузке"
-                        solver.lock().unwrap().mul_vector_value(step);
-                    }
+                    // Вычисляем поправочный коэффициент для "пропуска" упругой зоны
+                    let load_factor = 0.95 * (max_ssc / max_si);
+                    solver.lock().unwrap().mul_vector_value(load_factor);
+                    coef *= load_factor;
+                    //self.iter_no = 0;
                 }
+            } else {
+                // Увеличиваем нагрузку на значение "шаг по нагрузке"
+                solver.lock().unwrap().mul_vector_value(1.0 + step);
+                coef *= 1.0 + step;
             }
 
             self.iter_no += 1;
             if self.iter_no > 1 {
                 add_count += 1.0;
             }
-            ////////////////////
-            // if self.iter_no > 10 {
-            //     break;
-            // }
 
             if *self.is_global_iteration_stop.lock().unwrap() == true {
-                self.save_results(&res, res_name)?;
+                self.save_results(&self.res, res_name)?;
                 println!("Lead time: {:.2?}", time.elapsed());
                 break;
             }
@@ -536,7 +530,7 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
 
         if self.iter_no > 1 {
             // Нелинейный случай
-            let mut fe_si = self.si.lock().unwrap()[self.get_mesh().fe[[i, 0]]];
+            let mut fe_si = self.res[[self.res.shape()[0] - 1, self.get_mesh().fe[[i, 0]]]];
             // Загружаем диаграмму деформирования, соответствующую текущему КЭ
             let x = self.get_mesh().get_fe_coord(i);
             let mut ssc = &Vec::<[f64; 2]>::new();
@@ -554,27 +548,29 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
             }
             // Определяем минимальную по КЭ интенсивность наряжений
             for j in 1..self.get_mesh().fe.shape()[1] {
-                if fe_si < self.si.lock().unwrap()[self.get_mesh().fe[[i, j]]] {
-                    fe_si = self.si.lock().unwrap()[self.get_mesh().fe[[i, j]]];            
+                if fe_si < self.res[[self.res.shape()[0] - 1, self.get_mesh().fe[[i, j]]]] {
+                    fe_si = self.res[[self.res.shape()[0] - 1, self.get_mesh().fe[[i, j]]]];            
                 }
             }
             // Поиск в таблице свойств материала соответствующего напряжения
             let mut index = 0;
-            if fe_si >= ssc[1][0] {
-                for j in 1..ssc.len() {
-                    if fe_si > ssc[j - 1][0] && fe_si <= ssc[j][0] { 
-                        index = j;
-                        break 
+            if fe_si >= ssc[ssc.len() - 1][0] {
+                // Достигнут предел текучести
+                index = ssc.len() - 1;
+                *self.is_global_iteration_stop.lock().unwrap() = true;
+            } else {
+                if fe_si >= ssc[1][0] {
+                    for j in 1..ssc.len() {
+                        if fe_si > ssc[j - 1][0] && fe_si <= ssc[j][0] { 
+                            index = j;
+                            break 
+                        }
                     }
                 }
             }
-            if index == ssc.len() {
-                // Достигнут предел текучести
-                index -= 1;
-                *self.is_global_iteration_stop.lock().unwrap() = true;
-            }
+            let index_0 = self.ei.lock().unwrap().1[i];
             let new_e = if index != self.ei.lock().unwrap().1[i] {
-                (ssc[index][0] / ssc[index][1] - ssc[self.ei.lock().unwrap().1[i]][0] / ssc[self.ei.lock().unwrap().1[i]][1]).abs()
+                (ssc[index][0] / ssc[index][1] - ssc[index_0][0] / ssc[index_0][1]).abs()
             } else {
                 if self.ei.lock().unwrap().0[i] == 0.0 { e[0] } else { self.ei.lock().unwrap().0[i] }
             };

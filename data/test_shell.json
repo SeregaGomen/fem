@@ -1,7 +1,7 @@
 {
     "Mesh": "data/shell-tube-3.mesh",
     "Result": "data/shell-tube-3.res",
-    "Threads": 8,
+    "Threads": 1,
     "Eps": 1.0e-6,
     "YoungModulus": [
         {
