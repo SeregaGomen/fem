@@ -472,23 +472,20 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
         let mut coef = 1.0;
         let mut add_count = 0.0;
         let mut count = 1;
+        let mut is_loaded = false;
 
         *self.ei.lock().unwrap() = (vec![0.; self.get_mesh().fe.shape()[0]], vec![0; self.get_mesh().fe.shape()[0]]);
         // Итерационный процесс линеаризации упруго-пластической задачи
-        loop {
+        while *self.is_global_iteration_stop.lock().unwrap() == false {
             *self.is_local_iteration_stop.lock().unwrap() = true;
             // Формирование ГМЖ
             self.set_global_matrix(&mut solver)?;
             // Учет краевых условий
             self.set_boundary_condition(&mut solver)?;
-            self.res = self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?)?;
-            self.print_summary(&self.res);
-            println!("Load: x {}", coef * (1.0 + add_count * step));
-            println!("Iterate: {}\n", count);
-            count += 1;
-
+            let u = solver.lock().unwrap().solve(self.param.eps)?;
             if self.iter_no == 1 {
                 // Вычисление интенсивности напряжений
+                self.res = self.calc_results(&u)?;
                 let max_si = util::get_max(self.res.row(self.res.shape()[0] - 1));
                 if max_si > max_ssc {
                     // Задана слишком большая первоначальная нагрузка, уменьшаем ее на порядок
@@ -496,31 +493,37 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
                     solver.lock().unwrap().mul_vector_value(0.1);
                     self.iter_no = 0;
                 } else {
-                    // Вычисляем поправочный коэффициент для "пропуска" упругой зоны
-                    let load_factor = 0.95 * (max_ssc / max_si);
-                    solver.lock().unwrap().mul_vector_value(load_factor);
-                    coef *= load_factor;
-                    //self.iter_no = 0;
+                    if is_loaded == false {
+                        // Вычисляем поправочный коэффициент для "пропуска" упругой зоны
+                        let load_factor = 0.95 * (max_ssc / max_si);
+                        solver.lock().unwrap().mul_vector_value(load_factor);
+                        coef *= load_factor;
+                        self.iter_no = 0;
+                        is_loaded = true;
+                    } else {
+                        // Устанавливаем нагрузку в значение "шаг по нагрузке"
+                        solver.lock().unwrap().mul_vector_value(step);
+                    }
                 }
             } else {
-                // Увеличиваем нагрузку на значение "шаг по нагрузке"
-                solver.lock().unwrap().mul_vector_value(1.0 + step);
-                coef *= 1.0 + step;
+                if *self.is_local_iteration_stop.lock().unwrap() {
+                    self.res = &self.res + self.calc_results(&u)?;
+                }
             }
 
+            self.print_summary(&self.res);
+            println!("Load: x {}", coef * (1.0 + add_count * step));
+            println!("Iterate: {}\n", count);
+            count += 1;
             self.iter_no += 1;
-            if self.iter_no > 1 {
+            if self.iter_no > 1 && *self.is_local_iteration_stop.lock().unwrap()  {
                 add_count += 1.0;
-            }
-
-            if *self.is_global_iteration_stop.lock().unwrap() == true {
-                self.save_results(&self.res, res_name)?;
-                println!("Lead time: {:.2?}", time.elapsed());
-                break;
+                *self.is_local_iteration_stop.lock().unwrap() = false;
             }
             solver.lock().unwrap().clear_matrix();
         }
-
+        self.save_results(&self.res, res_name)?;
+        println!("Lead time: {:.2?}", time.elapsed());
         Ok(())
     }
     fn get_fe_param(&self, i: usize) -> Result<(Array2<f64>, [f64; 2], f64), FemError> {
@@ -576,7 +579,7 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
             };
             e[0] = new_e;
             // Проверка на изменение модуля упругости по сравнению с предыдущей итерацией
-            if index != self.ei.lock().unwrap().1[i] { *self.is_local_iteration_stop.lock().unwrap() = false }
+            if index != index_0 { *self.is_local_iteration_stop.lock().unwrap() = false }
             // Запоминаем рассчитанное значение модуля упругости и индекс
             self.ei.lock().unwrap().0[i] = new_e;
             self.ei.lock().unwrap().1[i] = index;
