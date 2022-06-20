@@ -1,5 +1,5 @@
 {
-    "Mesh": "data/tank.mesh",
+    "Mesh": "data/tank_1_4.mesh",
     "Result": "data/tank.res",
     "Threads": 8,
     "Eps": 1.0e-3,
@@ -62,6 +62,16 @@
             "Value": "0", 
             "Predicate": "abs(x - 14.338) < eps", 
             "Direct": "XYZ"
+        },
+        {
+            "Value": "0", 
+            "Predicate": "abs(y) <= eps", 
+            "Direct": "Z"
+        },
+        {
+            "Value": "0", 
+            "Predicate": "abs(z) <= eps", 
+            "Direct": "Y"
         }
     ],
     "Variables": [
@@ -90,11 +100,11 @@
         },
         {
             "Value": "P", 
-            "Predicate": "abs(R * R - ((x - C) * (x - C) + y * y + z * z)) <= eps and x <= (R * cos(FI_T) + C)"
+            "Predicate": "abs(R ^ 2 - ((x - C) ^ 2 + y ^ 2 + z ^ 2)) <= eps and x <= (R * cos(FI_T) + C)"
         },
         {
             "Value": "P", 
-            "Predicate": "abs(R * R - ((x - L + C) * (x - L + C) + y * y + z * z)) <= eps and x >= (R * cos(FI_B) + L - C)"
+            "Predicate": "abs(R ^ 2 - ((x - L + C) ^ 2 + y ^ 2 + z ^ 2)) <= eps and x >= (R * cos(FI_B) + L - C)"
         },
         {
             "Value": "P", 
@@ -103,6 +113,16 @@
         {
             "Value": "P", 
             "Predicate": "(x >= L and x <= (R * cos(FI_B) + L - C)) and abs(y ^ 2 + z ^ 2  - K2_BOT * (x - CX_BOT) ^ 2) < eps"
+        }
+    ],
+    "StressStrainCurve": [
+        {
+            "Value": [[1.27E+08, 0.002], [1.57E+08, 0.004], [1.77E+08, 0.008], [1.96E+08, 0.02], [3.14E+08, 0.12]], 
+            "Predicate": "(abs(R ^ 2 - ((x - C) ^ 2  + y ^ 2 + z ^ 2)) <= eps and x <= (R * cos(FI_T) + C)) or (abs(R ^ 2 - ((x - L + C) ^ 2 + y ^ 2 + z ^ 2)) <= eps and x >= (R * cos(FI_B) + L - C))" 
+        },
+        {
+            "Value": [[1.96E+08, 0.003], [2.55E+08, 0.005], [2.75E+08, 0.006], [3.14E+08, 0.015], [3.92E+08, 0.0725]], 
+            "Predicate": "not (abs(R ^ 2 - ((x - C) ^ 2  + y ^ 2 + z ^ 2)) <= eps and x <= (R * cos(FI_T) + C)) or (abs(R ^ 2 - ((x - L + C) ^ 2 + y ^ 2 + z ^ 2)) <= eps and x >= (R * cos(FI_B) + L - C))" 
         }
     ]
 }

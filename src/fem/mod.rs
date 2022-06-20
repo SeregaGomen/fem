@@ -84,11 +84,12 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
     }
     fn num_results(&self) -> usize {
         match self.get_mesh().fe_type {
-            FEType::FE1D2 => 3,
-            FEType::FE2D3 | FEType::FE2D4 => 8,
-            FEType::FE3D4 | FEType::FE3D8 => 15,
-            FEType::FE3D3S | FEType::FE3D4S => 18,
+            FEType::FE1D2 => 4,
+            FEType::FE2D3 | FEType::FE2D4 => 9,
+            FEType::FE3D4 | FEType::FE3D8 => 16,
+            FEType::FE3D3S | FEType::FE3D4S => 19,
         }
+        // self.fun_names().len()
     }
     fn fun_names(&self) -> Vec<&str> {
         match self.get_mesh().fe_type {
@@ -107,7 +108,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         }
     }
     fn calc_results(&self, u: &Array1<f64>) -> Result<Array2<f64>, FemError> {
-        let res = Mutex::new(Array2::<f64>::zeros((self.num_results() - self.get_mesh().freedom, self.get_mesh().num_vertex)));
+        let res = Mutex::new(Array2::<f64>::zeros((self.num_results() - self.get_mesh().freedom - 1, self.get_mesh().num_vertex)));
         let counter = Mutex::new(Array1::<i32>::zeros(self.get_mesh().num_vertex));
         // Вычисление деформаций, напряжений, ...
         let msg = Mutex::new(Messenger::new("Calculation of standard finite element results", 1, self.get_mesh().num_fe as i64, 5));
@@ -121,7 +122,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
                 }
             }
             let fe_res = self.calc_fe_results(i, fe_u)?; 
-            for j in 0..self.num_results() - self.get_mesh().freedom {
+            for j in 0..self.num_results() - self.get_mesh().freedom - 1 {
                 for k in 0..self.get_mesh().fe.shape()[1] {
                     res.lock().unwrap()[[j, self.get_mesh().fe[[i, k]]]] += fe_res[[j, k]];
                     if j == 0 {
@@ -132,7 +133,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             Ok(())
         })?;
 
-        let mut results = Array2::zeros((self.num_results() + 1, self.get_mesh().num_vertex));
+        let mut results = Array2::zeros((self.num_results(), self.get_mesh().num_vertex));
         let res = res.lock().unwrap();
         // Копирование результатов расчета (перемещений)
         for i in 0..self.get_mesh().freedom {
@@ -150,7 +151,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         // Вычисляем интенсивность напряжений
         let m_sqrt1_2 = 0.5 * 2_f64.sqrt();
         for i in 0..self.get_mesh().num_vertex {
-            results[[self.num_results(), i]] = m_sqrt1_2 * match self.get_mesh().fe_type {
+            results[[self.num_results() - 1, i]] = m_sqrt1_2 * match self.get_mesh().fe_type {
                 FEType::FE1D2 => results[[2, i]].abs(),
                 FEType::FE2D3 | FEType::FE2D4 => f64::sqrt(f64::powf(results[[5, i]] - results[[6, i]], 2.0) + 6.0 * (f64::powf(results[[7, i]], 2.0))),
                 FEType::FE3D4 | FEType::FE3D8 => f64::sqrt(f64::powf(results[[9, i]] - results[[10, i]], 2.0) + f64::powf(results[[9, i]] - results[[11, i]], 2.0) +
