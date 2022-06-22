@@ -37,6 +37,7 @@ pub enum FemError {
     IncorrectDirectError,
     IncorrectParamError,
     StressStrainCurveError,
+    ThicknessError,
     Other,
 }
 
@@ -71,6 +72,7 @@ impl fmt::Display for FemError {
             FemError::ValueError => write!(f, "Value not set"),
             FemError::PredicateError => write!(f, "Predicate not set"),
             FemError::StressStrainCurveError => write!(f, "Stress-strain curve not set"),
+            FemError::ThicknessError => write!(f, "FE thickness not set"),
             FemError::Other => write!(f, "Unknown error"),
         }
     }
@@ -139,6 +141,7 @@ impl Error for FemError {
             FemError::ValueError => Some(&FemError::ValueError),
             FemError::PredicateError => Some(&FemError::PredicateError),
             FemError::StressStrainCurveError => Some(&FemError::StressStrainCurveError),
+            FemError::ThicknessError => Some(&FemError::ThicknessError),
             FemError::Other => None,
         }
     }

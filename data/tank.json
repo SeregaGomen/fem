@@ -1,5 +1,5 @@
 {
-    "Mesh": "data/tank_1_4.mesh",
+    "Mesh": "data/tank.mesh",
     "Result": "data/tank.res",
     "Threads": 8,
     "Eps": 1.0e-3,
@@ -89,7 +89,7 @@
         "L2 2.122",
         "L3 1.654",
         "L4 1.09",
-        "P 100",
+        "P 142196",
         "R 2.5",
         "eps 0.001"
     ],

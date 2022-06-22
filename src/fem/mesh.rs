@@ -268,6 +268,9 @@ impl Mesh {
         }
         coord
     }
+    pub fn is_1d(&self) -> bool {
+        if self.fe_type == FEType::FE1D2 { true } else { false }
+    }
     pub fn is_2d(&self) -> bool {
         if self.fe_type == FEType::FE2D3 || self.fe_type == FEType::FE2D4 { true } else { false }
     }
