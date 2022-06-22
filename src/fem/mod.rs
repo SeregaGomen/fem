@@ -536,7 +536,6 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
             // Нелинейный случай
             let mut fe_si = self.res[[self.res.shape()[0] - 1, self.get_mesh().fe[[i, 0]]]];
             // Загружаем диаграмму деформирования, соответствующую текущему КЭ
-            let x = self.get_mesh().get_fe_coord(i);
             let mut ssc = &Vec::<[f64; 2]>::new();
             for it in &self.get_param().param {
                 if it.p_type == ParamType::StressStrainCurve {
