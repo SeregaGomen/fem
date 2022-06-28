@@ -11,11 +11,11 @@
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=example2",
+                    "--bin=example1",
                     "--package=fem"
                 ],
                 "filter": {
-                    "name": "example2",
+                    "name": "example1",
                     "kind": "bin"
                 }
             },

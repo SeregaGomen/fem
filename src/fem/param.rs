@@ -109,7 +109,7 @@ impl<'a> Parameter<'a> {
             _ => Err(FemError::IncorrectParamError)
         }
     }
-    pub fn get_predicate(&self, x: &Array1<f64>, variables: &HashMap<&'a str, f64>) -> Result<bool, FemError> {
+    pub fn get_predicate(&self, x: &ArrayView1<f64>, variables: &HashMap<&'a str, f64>) -> Result<bool, FemError> {
         match self.predicate.value_type {
             ParamValueType::String => {
                 if self.predicate.value_str.len() == 0 {

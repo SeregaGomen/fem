@@ -1,6 +1,6 @@
 {
-    "Mesh": "data/tank.mesh",
-    "Result": "data/tank.res",
+    "Mesh": "data/tank_1_4.mesh",
+    "Result": "data/tank_1_4.res",
     "Threads": 8,
     "Eps": 1.0e-3,
     "YoungModulus": [
@@ -10,7 +10,7 @@
         },
         {
             "Value": "7.3e+10", 
-            "Predicate": "not (abs(R ^ 2 - ((x - C) ^ 2 + y ^ 2 + z ^ 2)) <= eps and x <= (R * cos(FI_T) + C)) or (abs(R ^ 2 - ((x - L + C) ^ 2 + y ^ 2 + z ^ 2)) <= eps and x >= (R * cos(FI_B) + L - C))" 
+            "Predicate": "" 
         }
     ],
     "PoissonRatio": [
@@ -66,12 +66,12 @@
         {
             "Value": "0", 
             "Predicate": "abs(y) <= eps", 
-            "Direct": "Z"
+            "Direct": "Y"
         },
         {
             "Value": "0", 
             "Predicate": "abs(z) <= eps", 
-            "Direct": "Y"
+            "Direct": "Z"
         }
     ],
     "Variables": [
@@ -122,7 +122,7 @@
         },
         {
             "Value": [[1.96E+08, 0.003], [2.55E+08, 0.005], [2.75E+08, 0.006], [3.14E+08, 0.015], [3.92E+08, 0.0725]], 
-            "Predicate": "not (abs(R ^ 2 - ((x - C) ^ 2  + y ^ 2 + z ^ 2)) <= eps and x <= (R * cos(FI_T) + C)) or (abs(R ^ 2 - ((x - L + C) ^ 2 + y ^ 2 + z ^ 2)) <= eps and x >= (R * cos(FI_B) + L - C))" 
+            "Predicate": "" 
         }
     ]
 }
