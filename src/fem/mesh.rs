@@ -160,7 +160,7 @@ impl Mesh {
             }
         }
 
-        println!("Mesh info ({}): nodes - {}, finite elements - {}", fe_type, num_vertex, num_fe);
+        println!("Mesh: {} ({}), nodes - {}, finite elements - {}", file_name, fe_type, num_vertex, num_fe);
         Ok(Self {freedom, num_vertex, num_fe, num_be, fe_type, x, fe, be, mesh_map})
     }
     // fn create_mesh_map(num_vertex: usize, fe: &Array2<usize>) -> Vec<Vec<usize>> {
