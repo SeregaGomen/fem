@@ -1,5 +1,5 @@
+use std::rc::Rc;
 use super::error::FemError;
-use std::ptr;
 
 #[derive(Copy, Clone, PartialEq)]
 enum Token {
@@ -44,31 +44,27 @@ enum TokenType {
 }
 
 struct Node {
-    val: f64,
-    p_val: *const f64,
+    val: Rc<f64>,
     tok: Option<Token>,
     children: Vec<Node>,
 }
 
 impl Node {
     fn new() -> Self {
-        Self{ val: 0.0, p_val: ptr::null(), tok: None, children: vec![] }
+        Self{ val: Rc::new(0.0), tok: None, children: vec![] }
     }
     fn double(v: f64) -> Self {
-        Self{ val: v, p_val: ptr::null(), tok: Some(Token::Number), children: vec![] }
-    }
-    fn p_double(v: *mut f64) -> Self {
-        Self{ val: 0.0, p_val: v, tok: Some(Token::Number), children: vec![] }
+        Self{ val: Rc::new(v), tok: Some(Token::Number), children: vec![] }
     }
     fn unary(t: Token, r: Node) -> Self {
-        Self{ val: 0.0, p_val: ptr::null_mut(), tok: Some(t), children: vec![r] }
+        Self{ val: Rc::new(0.0), tok: Some(t), children: vec![r] }
     }
     fn binary(l: Node, t: Token, r: Node) -> Self {
-        Self{ val: 0.0, p_val: ptr::null_mut(), tok: Some(t), children: vec![l, r] }
+        Self{ val: Rc::new(0.0), tok: Some(t), children: vec![l, r] }
     }
     fn value(&mut self) -> Result<f64, FemError> {
         match self.tok {
-            Some(Token::Number) => if self.p_val == ptr::null_mut() { Ok(self.val) } else { unsafe { Ok(*self.p_val) } }
+            Some(Token::Number) => Ok(*self.val),
             Some(Token::Plus) => if self.children.len() == 1 { Ok(self.children[0].value()?) } else { Ok(self.children[0].value()? + self.children[1].value()?) }
             Some(Token::Minus) => if self.children.len() == 1 { Ok(-self.children[0].value()?) } else { Ok(self.children[0].value()? - self.children[1].value()?) }
             Some(Token::Mul) => Ok(self.children[0].value()? * self.children[1].value()?),
@@ -406,7 +402,7 @@ impl<'a> Parser<'a> {
             Some(TokenType::Variable) => {
                 for i in 0..self.variables.len() {
                     if self.variables[i].0 == self.token {
-                        res = Ok(Node::p_double(&mut self.variables[i].1));
+                        res = Ok(Node::double(self.variables[i].1));
                         self.get_token()?;
                         is_find = true;
                         break;
