@@ -14,7 +14,7 @@ use ndarray::{Array1, Array2, prelude::*};
 use std::time::Instant;
 use error::FemError;
 use mesh::Mesh;
-use solver::Solver;
+use solver::FemSolver;
 use fe::FEType;
 use msg::Messenger;
 use param::{ParamType, Parameter, FEMParameter, Direct};
@@ -69,7 +69,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             }
         } 
     }
-    fn set_global_matrix(&self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
+    fn set_global_matrix(&self, solver: &mut Mutex<impl FemSolver>) -> Result<(), FemError> {
         let msg = Mutex::new(Messenger::new("Generate global stiffness matrix", 1, self.get_mesh().num_fe as i64, 5));
         (0..self.get_mesh().num_fe).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
             msg.lock().unwrap().add_progress();
@@ -278,7 +278,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             FEType::FE3D4S | FEType::FE3D8 => array![ 0.25, 0.25, 0.25, 0.25 ],
         } 
     }
-    fn set_boundary_condition(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
+    fn set_boundary_condition(&mut self, solver: &mut Mutex<impl FemSolver>) -> Result<(), FemError> {
         let msg = Mutex::new(Messenger::new("Using of boundary conditions", 1, self.get_mesh().num_vertex as i64, 5));
         (0..self.get_mesh().num_vertex).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
             msg.lock().unwrap().add_progress();
@@ -304,7 +304,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         // msg.lock().unwrap().stop();
         Ok(())
     }
-    fn set_concentrated_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
+    fn set_concentrated_load(&mut self, solver: &mut Mutex<impl FemSolver>) -> Result<(), FemError> {
         if self.get_param().find_parameter(ParamType::ConcentratedLoad) {
             let msg = Mutex::new(Messenger::new("Calculation of concentrated loads", 1, self.get_mesh().num_vertex as i64, 5));
             (0..self.get_mesh().num_vertex).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
@@ -330,7 +330,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         }
         Ok(())
     }
-    fn set_volume_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
+    fn set_volume_load(&mut self, solver: &mut Mutex<impl FemSolver>) -> Result<(), FemError> {
         if self.get_param().find_parameter(ParamType::VolumeLoad) {
             let msg = Mutex::new(Messenger::new("Calculation of volume loads", 1, self.get_mesh().num_fe as i64, 5));
             (0..self.get_mesh().num_fe).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
@@ -359,7 +359,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         }
         Ok(())
     }
-    fn set_surface_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
+    fn set_surface_load(&mut self, solver: &mut Mutex<impl FemSolver>) -> Result<(), FemError> {
         if self.get_param().find_parameter(ParamType::PressureLoad) || self.get_param().find_parameter(ParamType::SurfaceLoad) {
             let msg = Mutex::new(Messenger::new("Calculation of surface loads", 1, self.get_mesh().num_be as i64, 5));
             (0..self.get_mesh().num_be).into_par_iter().try_for_each(|i| -> Result<(), FemError> {
@@ -397,7 +397,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         }
         Ok(true)
     }
-    fn set_load(&mut self, solver: &mut Mutex<impl Solver>) -> Result<(), FemError> {
+    fn set_load(&mut self, solver: &mut Mutex<impl FemSolver>) -> Result<(), FemError> {
         self.set_concentrated_load(solver)?;
         self.set_volume_load(solver)?;
         self.set_surface_load(solver)

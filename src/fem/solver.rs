@@ -1,9 +1,9 @@
-use ndarray::{Array1};
+use ndarray::Array1;
 use super::error::FemError;
 use super::sparse::{SparseMatrix, MapSparseMatrix, EnvSparseMatrix};
 use super::mesh::Mesh;
 
-pub trait Solver: Send {
+pub trait FemSolver: Send {
     fn size(&self) -> usize;
     fn add_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
     fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
@@ -65,7 +65,7 @@ impl EnvSolver {
     }
 }
 
-impl Solver for LzhSolver {
+impl FemSolver for LzhSolver {
     fn size(&self) -> usize {
         self.size
     }
@@ -108,7 +108,7 @@ impl Solver for LzhSolver {
     }
 }
 
-impl Solver for EnvSolver {
+impl FemSolver for EnvSolver {
     fn size(&self) -> usize {
         self.size
     }
