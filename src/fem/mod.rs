@@ -27,18 +27,19 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
     fn get_param(&self) -> Arc<&FEMParameter<'a>>;
     fn get_mesh(&self) -> Arc<&Mesh>;
     fn get_fe_param(&self, i: usize) -> Result<(Array2<f64>, [f64; 2], f64), FemError> {
-        let e = [self.get_param_value(i, ParamType::YoungModulus)?, self.get_param_value(i, ParamType::PoissonsRatio)?];
-        let thk = self.get_param_value(i, ParamType::Thickness)?;
-        if e[0] == 0. {
-            return Err(FemError::YoungModulusError);    
-        }
-        if e[1] == 0. && self.get_mesh().is_1d() {
-            return Err(FemError::PoissonRatioError);    
-        }
-        if thk == 0. && !self.get_mesh().is_3d() {
-            return Err(FemError::ThicknessError);    
-        }
-        Ok((self.get_mesh().get_fe_coord(i), e, thk))
+        let e = match self.get_param_value(i, ParamType::YoungModulus)? {
+            Some(val) => val,
+            None => return Err(FemError::YoungModulusError),
+        };
+        let m = match self.get_param_value(i, ParamType::PoissonsRatio)? {
+            Some(val) => val,
+            None => return Err(FemError::PoissonRatioError),
+        };
+        let thk = match self.get_param_value(i, ParamType::Thickness)? {
+            Some(val) => val,
+            None => return Err(FemError::ThicknessError),
+        };
+        Ok((self.get_mesh().get_fe_coord(i), [e, m], thk))
     }
     fn calc_fe_matrix(&self, i: usize) -> Result<Array2<f64>, FemError> {
         use crate::fem::fe::fe1d::FiniteElement1D;
@@ -169,18 +170,15 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         }
         Ok(results)
     }
-    fn get_param_value(&self, i: usize, param_type: ParamType) -> Result<f64, FemError> {
-        let mut val = 0.;
+    fn get_param_value(&self, i: usize, param_type: ParamType) -> Result<Option<f64>, FemError> {
         for it in &self.get_param().param {
             if it.p_type == param_type {
-                if !self.check_elem(&self.get_mesh().get_fe_coord(i), &it)? {
-                    continue;
+                if self.check_elem(&self.get_mesh().get_fe_coord(i), &it)? {
+                    return Ok(Some(it.get_scalar_value(&self.get_mesh().get_fe_center(i), &self.get_param().variables)?));
                 }
-                val = it.get_scalar_value(&self.get_mesh().get_fe_center(i), &self.get_param().variables)?;
-                break;
             }
         }
-        Ok(val)
+        Ok(None)
     }
     fn calc_fe_results(&self, i: usize, u: Array1<f64>) -> Result<Array2<f64>, FemError> {
         use crate::fem::fe::fe1d::FiniteElement1D;
@@ -533,18 +531,18 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
         Ok(())
     }
     fn get_fe_param(&self, i: usize) -> Result<(Array2<f64>, [f64; 2], f64), FemError> {
-        let mut e = [self.get_param_value(i, ParamType::YoungModulus)?, self.get_param_value(i, ParamType::PoissonsRatio)?];
-        let thk = self.get_param_value(i, ParamType::Thickness)?;
-
-        if e[0] == 0. {
-            return Err(FemError::YoungModulusError);    
-        }
-        if e[1] == 0. && self.get_mesh().is_1d() {
-            return Err(FemError::PoissonRatioError);    
-        }
-        if thk == 0. && !self.get_mesh().is_3d() {
-            return Err(FemError::ThicknessError);    
-        }
+        let mut e = match self.get_param_value(i, ParamType::YoungModulus)? {
+            Some(val) => val,
+            None => return Err(FemError::YoungModulusError),
+        };
+        let m = match self.get_param_value(i, ParamType::PoissonsRatio)? {
+            Some(val) => val,
+            None => return Err(FemError::PoissonRatioError),
+        };
+        let thk = match self.get_param_value(i, ParamType::Thickness)? {
+            Some(val) => val,
+            None => return Err(FemError::ThicknessError),
+        };
 
         if self.iter_no > 1 {
             // Нелинейный случай
@@ -589,16 +587,16 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
             let new_e = if index != self.ei.lock().unwrap().1[i] {
                 (ssc[index][0] / ssc[index][1] - ssc[index_0][0] / ssc[index_0][1]).abs()
             } else {
-                if self.ei.lock().unwrap().0[i] == 0.0 { e[0] } else { self.ei.lock().unwrap().0[i] }
+                if self.ei.lock().unwrap().0[i] == 0.0 { e } else { self.ei.lock().unwrap().0[i] }
             };
-            e[0] = new_e;
+            e = new_e;
             // Проверка на изменение модуля упругости по сравнению с предыдущей итерацией
             if index != index_0 { *self.is_local_iteration_stop.lock().unwrap() = false }
             // Запоминаем рассчитанное значение модуля упругости и индекс
             self.ei.lock().unwrap().0[i] = new_e;
             self.ei.lock().unwrap().1[i] = index;
         }
-        Ok((self.get_mesh().get_fe_coord(i), e, thk))
+        Ok((self.get_mesh().get_fe_coord(i), [e, m], thk))
     }
 }
 
