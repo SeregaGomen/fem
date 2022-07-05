@@ -353,6 +353,13 @@ impl Mesh {
         let len = (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]).sqrt();   
         normal / len  
     }
+    pub fn nnz(&self) -> usize {
+        let mut val = 0;
+        for i in &self.mesh_map {
+            val += i.len();
+        }
+        val * self.freedom * self.freedom
+    }
 }
 
 

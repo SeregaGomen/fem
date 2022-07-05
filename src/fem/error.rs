@@ -5,6 +5,7 @@ use std::convert::From;
 use std::io::Error as IoError;
 use std::num::ParseIntError as ParseIntError;
 use std::num::ParseFloatError as ParseFloatError;
+use russell_sparse::StrError;
 use json::Error as JsonError;
 
 #[derive(Debug)]
@@ -13,6 +14,7 @@ pub enum FemError {
     ParseInt(ParseIntError),
     ParseFloat(ParseFloatError),
     JsonError(JsonError),
+    StrError(StrError),
     OpenFile,
     ReadFile,
     WriteFile,
@@ -48,6 +50,7 @@ impl fmt::Display for FemError {
             FemError::ParseInt(ref cause) => write!(f, "Parse Int Error: {}", cause),
             FemError::ParseFloat(ref cause) => write!(f, "Parse Float Error: {}", cause),
             FemError::JsonError(ref cause) => write!(f, "Json Error: {}", cause),
+            FemError::StrError(ref cause) => write!(f, "Russell Error: {}", *cause),
             FemError::OpenFile => write!(f, "Unable open file"),
             FemError::ReadFile => write!(f, "Unable read file"),
             FemError::WriteFile => write!(f, "Unable write file"),
@@ -79,44 +82,13 @@ impl fmt::Display for FemError {
 }
 
 impl Error for FemError {
-    // fn description(&self) -> &str {
-    //     match *self {
-    //         FemError::Io(ref cause) => cause.description(),
-    //         FemError::ParseInt(ref cause) => cause.description(),
-    //         FemError::ParseFloat(ref cause) => cause.description(),
-    //         FemError::JsonError(ref cause) => cause.description(),
-    //         FemError::OpenFile => "Unable open file",
-    //         FemError::ReadFile => "Unable read file",
-    //         FemError::WriteFile => "Unable write file",
-    //         FemError::InvalidFEType => "Invalid FE type",
-    //         FemError::InvalidNumber => "Invalid number",
-    //         FemError::SingularMatrix => "Singular matrix",
-    //         FemError::InverseMatrix => "Error calculation of inverse matrix",
-    //         FemError::DeterminantMatrix => "Error calculation of matrix determinant",
-    //         FemError::InvalidIndex => "Invalid index",
-    //         FemError::UndefError => "Undefined variable",
-    //         FemError::BracketError => "Unbalanced brackets",
-    //         FemError::SyntaxError => "Syntax error",
-    //         FemError::MeshError => "Mesh-file not specified",
-    //         FemError::ResultError => "Result-file not specified",
-    //         FemError::ParamError => "Wrong parameter", 
-    //         FemError::InternalError => "Internal error",
-    //         FemError::YoungModulusError => "Modulus of elasticity not set",
-    //         FemError::PoissonRatioError => "Poisson's ratio not set",
-    //         FemError::DirectError => "Direct not set",
-    //         FemError::IncorrectDirectError => "Incorrect direct",
-    //         FemError::ValueError => "Value not set",
-    //         FemError::PredicateError => "Predicate not set",
-    //         FemError::Other => "Unknown error",
-    //     }
-    // }
-
     fn cause(&self) -> Option<&dyn Error> {
         match *self {
             FemError::Io(ref cause) => Some(cause),
             FemError::ParseInt(ref cause) => Some(cause),
             FemError::ParseFloat(ref cause) => Some(cause),
             FemError::JsonError(ref cause) => Some(cause),
+            FemError::StrError(ref cause) => None, //Some(cause),
             FemError::OpenFile => Some(&FemError::OpenFile),
             FemError::ReadFile => Some(&FemError::ReadFile),
             FemError::WriteFile => Some(&FemError::WriteFile),
@@ -170,5 +142,11 @@ impl From<ParseFloatError> for FemError {
 impl From<JsonError> for FemError {
     fn from(cause: JsonError) -> FemError {
         FemError::JsonError(cause)
+    }
+}
+
+impl From<StrError> for FemError {
+    fn from(cause: StrError) -> FemError {
+        FemError::StrError(cause)
     }
 }

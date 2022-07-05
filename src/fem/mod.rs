@@ -473,11 +473,12 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
     }
     fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
         // use solver::LzhSolver;
-        use solver::EnvSolver;
+        // use solver::EnvSolver;
+        use solver::RLSolver;
 
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
         let time = Instant::now();
-        let mut solver = Mutex::new(EnvSolver::new(&self.mesh));
+        let mut solver = Mutex::new(RLSolver::new(&self.mesh));
         // let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
 
         // Учет краевых условий
