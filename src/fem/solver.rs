@@ -13,27 +13,27 @@ pub trait FemSolver: Send {
     fn set_result_value(&mut self, index: usize, val: f64) -> Result<(), FemError>;
     fn clear_matrix(&mut self);
     fn clear_vector(&mut self);
-    fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError>;
+    fn solve(&mut self, eps: f64) -> Result<Vec<f64>, FemError>;
 }
 
 pub struct LzhSolver {
     size: usize,
     matrix: MapSparseMatrix,
-    vector: Array1<f64>,
+    vector: Vec<f64>,
     boundary_condition: Vec<Option<f64>>,
 }
 
 pub struct EnvSolver {
     size: usize,
     matrix: EnvSparseMatrix,
-    vector: Array1<f64>,
+    vector: Vec<f64>,
     boundary_condition: Vec<Option<f64>>,
 }
 
 pub struct RLSolver {
     size: usize,
     matrix: SparseTriplet,
-    vector: Vector,
+    vector: Vec<f64>,
     boundary_condition: Vec<Option<f64>>,
 }
 
@@ -44,7 +44,7 @@ impl LzhSolver {
         Self { 
             size,
             matrix: MapSparseMatrix::new(mesh.num_vertex, mesh.freedom, &mesh.mesh_map), 
-            vector: Array1::zeros(size), 
+            vector: vec![0.0; size], 
             boundary_condition: vec![None; size], 
         }
     }
@@ -57,7 +57,7 @@ impl EnvSolver {
         Self { 
             size,
             matrix: EnvSparseMatrix::new(mesh.num_vertex, mesh.freedom, &mesh.mesh_map), 
-            vector: Array1::zeros(size), 
+            vector: vec![0.0; size], 
             boundary_condition: vec![None; size],  
         }
     }
@@ -71,7 +71,7 @@ impl RLSolver {
         Self { 
             size,
             matrix: SparseTriplet::new(size, size, nnz, Symmetry::General).unwrap(), 
-            vector: Vector::new(size), 
+            vector: vec![0.0; size], 
             boundary_condition: vec![None; size],  
         }
     }
@@ -100,7 +100,7 @@ impl FemSolver for LzhSolver {
             self.vector[i] *= coef;
         }     
     }
-    fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError> {
+    fn solve(&mut self, eps: f64) -> Result<Vec<f64>, FemError> {
         // Учет граничных условий
         for i in 0..self.size {
             if self.boundary_condition[i] != None {
@@ -114,7 +114,7 @@ impl FemSolver for LzhSolver {
         self.matrix.clear();
     }
     fn clear_vector(&mut self) {
-        self.vector = Array1::zeros(self.vector.len());
+        self.vector = vec![0.0; self.size];
     }
 }
 
@@ -141,7 +141,7 @@ impl FemSolver for EnvSolver {
             self.vector[i] *= coef;
         }        
     }
-    fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError> {
+    fn solve(&mut self, eps: f64) -> Result<Vec<f64>, FemError> {
         // Учет граничных условий
         for i in 0..self.size {
             if self.boundary_condition[i] != None {
@@ -166,7 +166,7 @@ impl FemSolver for EnvSolver {
         self.matrix.clear();
     }
     fn clear_vector(&mut self) {
-        self.vector = Array1::zeros(self.vector.len());
+        self.vector = vec![0.0; self.size];
     }
 }
 
@@ -193,7 +193,7 @@ impl FemSolver for RLSolver {
             self.vector[i] *= coef;
         }        
     }
-    fn solve(&mut self, _: f64) -> Result<Array1<f64>, FemError> {
+    fn solve(&mut self, _: f64) -> Result<Vec<f64>, FemError> {
         // Учет граничных условий
         for i in 0..self.size {
             if self.boundary_condition[i] != None {
@@ -205,18 +205,19 @@ impl FemSolver for RLSolver {
         solver.initialize(&self.matrix).unwrap();
         solver.factorize().unwrap();
         let mut x = Vector::new(self.size);
-        solver.solve(&mut x, &self.vector).unwrap();
+        solver.solve(&mut x, & Vector::from(&self.vector)).unwrap();
 
-        let mut res = Array1::<f64>::zeros(self.size);
-        for i in 0..self.size {
-            res[i] = x[i];
-        }
-        Ok(res)
+        // let mut res = Array1::<f64>::zeros(self.size);
+        // for i in 0..self.size {
+        //     res[i] = x[i];
+        // }
+        let x = x.as_data().clone();
+        Ok(x)
     }
     fn clear_matrix(&mut self) {
         self.matrix.reset();
     }
     fn clear_vector(&mut self) {
-        self.vector = Vector::new(self.size);
+        self.vector = vec![0.0; self.size];
     }
 }

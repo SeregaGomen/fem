@@ -127,7 +127,7 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             println!("{}:\t{}\t{}", names[i], util::fmt_f64(util::get_min(res.row(i)), 12, 5, 2), util::fmt_f64(util::get_max(res.row(i)), 12, 5, 2));
         }
     }
-    fn calc_results(&self, u: &Array1<f64>) -> Result<Array2<f64>, FemError> {
+    fn calc_results(&self, u: &Vec<f64>) -> Result<Array2<f64>, FemError> {
         let res = Mutex::new(Array2::<f64>::zeros((self.num_results() - self.get_mesh().freedom - 1, self.get_mesh().num_vertex)));
         let counter = Mutex::new(Array1::<i32>::zeros(self.get_mesh().num_vertex));
         // Вычисление деформаций, напряжений, ...

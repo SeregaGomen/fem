@@ -9,7 +9,7 @@ pub trait SparseMatrix {
     fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
     fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
     fn get_value(&self, index1: usize, index2: usize) -> Result<f64, FemError>;
-    fn solve(&mut self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, FemError>;
+    fn solve(&mut self, rhs: &Vec<f64>, eps: f64) -> Result<Vec<f64>, FemError>;
     fn clear(&mut self);
 }
 
@@ -45,7 +45,7 @@ impl SparseMatrix for MapSparseMatrix {
         let pos = self.find(index1, index2)?;
         Ok(self.data[index1][pos])
     }
-    fn solve(&mut self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, FemError> {
+    fn solve(&mut self, rhs: &Vec<f64>, eps: f64) -> Result<Vec<f64>, FemError> {
         self.lzh_solve(rhs, eps)
     }
     fn clear(&mut self) {
@@ -97,7 +97,7 @@ impl SparseMatrix for EnvSparseMatrix {
         }
         Err(FemError::InvalidIndex)
     }
-    fn solve(&mut self, rhs: &Array1<f64>, _eps: f64) -> Result<Array1<f64>, FemError> {
+    fn solve(&mut self, rhs: &Vec<f64>, _eps: f64) -> Result<Vec<f64>, FemError> {
         // Факторизация матрицы A = L * L(t)
         if self.esfct() == false {
             return Err(FemError::SingularMatrix);
@@ -106,7 +106,7 @@ impl SparseMatrix for EnvSparseMatrix {
         let y = self.elslv(self.size, &self.diag, &self.env, &self.xenv, &rhs.to_vec());
         // Вычисление x: (L(t)x = y)
         let x = self.euslv(self.size, &self.diag, &self.env, &self.xenv, &y);
-        Ok(Array::from_vec(x))
+        Ok(x)
     }
     fn clear(&mut self) {
         for i in &mut self.diag {
@@ -164,9 +164,9 @@ impl MapSparseMatrix {
         rows.into_iter().map(|(_, row)| row).collect::<Array1<f64>>()
     }
     // Метод Ланцоша
-    fn lzh_solve(&self, rhs: &Array1<f64>, eps: f64) -> Result<Array1<f64>, FemError> {
+    fn lzh_solve(&self, rhs: &Vec<f64>, eps: f64) -> Result<Vec<f64>, FemError> {
         let max_iter = 2 * self.nvtxs * self.blksze;
-        let mut x: Array1<f64> = rhs.clone();
+        let mut x: Array1<f64> = arr1(&rhs.clone());
         let mut r = self.dot(&x) - &x;
         let mut s = r.clone();
         let mut norm = util::scalar_product(&r, &r);
@@ -198,7 +198,7 @@ impl MapSparseMatrix {
         if !is_ok {
             return Err(FemError::SingularMatrix);
         }
-        Ok(x)
+        Ok(x.into_raw_vec())
     }
 }
 
