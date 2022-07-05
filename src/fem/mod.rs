@@ -33,11 +33,23 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
         };
         let m = match self.get_param_value(i, ParamType::PoissonsRatio)? {
             Some(val) => val,
-            None => return Err(FemError::PoissonRatioError),
+            None => {
+                if self.get_mesh().is_1d() {
+                    0.
+                } else {
+                    return Err(FemError::PoissonRatioError)
+                }
+            }
         };
         let thk = match self.get_param_value(i, ParamType::Thickness)? {
             Some(val) => val,
-            None => return Err(FemError::ThicknessError),
+            None => {
+                if self.get_mesh().is_3d() {
+                    0.
+                } else {
+                    return Err(FemError::ThicknessError)
+                }
+            }
         };
         Ok((self.get_mesh().get_fe_coord(i), [e, m], thk))
     }
@@ -312,13 +324,13 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
                         if it.get_predicate(&self.get_mesh().x.row(i), &self.get_param().variables)? == true {
                             let val = it.get_scalar_value(&self.get_mesh().get_x_coord(i), &self.get_param().variables)?;
                             if it.direct.contains(Direct::X) {
-                                solver.lock().unwrap().set_vector_value((i) * self.get_mesh().freedom + 0, val)?;    
+                                solver.lock().unwrap().add_vector_value((i) * self.get_mesh().freedom + 0, val)?;    
                             }
                             if it.direct.contains(Direct::Y) && (self.get_mesh().is_2d() || self.get_mesh().is_3d()) {
-                                solver.lock().unwrap().set_vector_value((i) * self.get_mesh().freedom + 1, val)?;    
+                                solver.lock().unwrap().add_vector_value((i) * self.get_mesh().freedom + 1, val)?;    
                             }
                             if it.direct.contains(Direct::Z) && self.get_mesh().is_3d() {
-                                solver.lock().unwrap().set_vector_value((i) * self.get_mesh().freedom + 2, val)?;    
+                                solver.lock().unwrap().add_vector_value((i) * self.get_mesh().freedom + 2, val)?;    
                             }
                         }
                     }
@@ -419,15 +431,15 @@ impl<'a> FiniteElementMethod<'a> for FEM<'a> {
     }
     fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
         use solver::LzhSolver;
-        // use solver::EnvSolver;
+        //use solver::EnvSolver;
 
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
         let time = Instant::now();
         let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
         // let mut solver = Mutex::new(EnvSolver::new(&self.mesh));
+        self.set_boundary_condition(&mut solver)?;
         self.set_load(&mut solver)?;
         self.set_global_matrix(&mut solver)?;
-        self.set_boundary_condition(&mut solver)?;
         let res = self.calc_results(&solver.lock().unwrap().solve(self.param.eps)?)?;
         self.print_summary(&res);
         self.save_results(&res, res_name)?;
@@ -468,10 +480,12 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
         let mut solver = Mutex::new(EnvSolver::new(&self.mesh));
         // let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
 
+        // Учет краевых условий
+        self.set_boundary_condition(&mut solver)?;
         // Предварительное вычисление компонент нагрузки
         self.set_load(&mut solver)?;
+        
         let max_ssc = self.get_min_stress()?;
-
         let step = 0.05;
         let mut coef = 1.0;
         let mut add_count = 0.0;
@@ -484,8 +498,6 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
             *self.is_local_iteration_stop.lock().unwrap() = true;
             // Формирование ГМЖ
             self.set_global_matrix(&mut solver)?;
-            // Учет краевых условий
-            self.set_boundary_condition(&mut solver)?;
             let u = solver.lock().unwrap().solve(self.param.eps)?;
             if self.iter_no == 1 {
                 // Вычисление интенсивности напряжений
@@ -537,11 +549,23 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
         };
         let m = match self.get_param_value(i, ParamType::PoissonsRatio)? {
             Some(val) => val,
-            None => return Err(FemError::PoissonRatioError),
+            None => {
+                if self.get_mesh().is_1d() {
+                    0.
+                } else {
+                    return Err(FemError::PoissonRatioError)
+                }
+            }
         };
         let thk = match self.get_param_value(i, ParamType::Thickness)? {
             Some(val) => val,
-            None => return Err(FemError::ThicknessError),
+            None => {
+                if self.get_mesh().is_3d() {
+                    0.
+                } else {
+                    return Err(FemError::ThicknessError)
+                }
+            }
         };
 
         if self.iter_no > 1 {

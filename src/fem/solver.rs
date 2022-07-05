@@ -6,24 +6,10 @@ use super::mesh::Mesh;
 pub trait FemSolver: Send {
     fn size(&self) -> usize;
     fn add_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
-    fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
-    fn get_matrix_value(&self, index1: usize, index2: usize) -> Result<f64, FemError>;
     fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), FemError>; 
-    fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), FemError>;
     fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError>;
     fn mul_vector_value(&mut self, coef: f64);
-    fn set_result_value(&mut self, index: usize, val: f64) -> Result<(), FemError> {
-        for i in 0..self.size() {
-            if i != index {
-                if self.set_matrix_value(index, i, 0.).is_err() {
-                    continue;
-                }
-                self.set_matrix_value(i, index, 0.)?;
-            }
-        }
-        self.set_vector_value(index, val * self.get_matrix_value(index, index)?)?;
-        Ok(())
-    }
+    fn set_result_value(&mut self, index: usize, val: f64) -> Result<(), FemError>;
     fn clear_matrix(&mut self);
     fn clear_vector(&mut self);
 }
@@ -32,12 +18,14 @@ pub struct LzhSolver {
     size: usize,
     a: MapSparseMatrix,
     b: Array1<f64>,
+    bc: Vec<Option<f64>>,
 }
 
 pub struct EnvSolver {
     size: usize,
     a: EnvSparseMatrix,
     b: Array1<f64>,
+    bc: Vec<Option<f64>>,
 }
 
 //unsafe impl Send for LzhSolver {}
@@ -46,10 +34,12 @@ pub struct EnvSolver {
 #[allow(dead_code)]
 impl LzhSolver {
     pub fn new(mesh: &Mesh) -> Self {
+        let size = mesh.num_vertex * mesh.freedom;
         Self { 
-            size: mesh.num_vertex * mesh.freedom,
+            size,
             a: MapSparseMatrix::new(mesh.num_vertex, mesh.freedom, &mesh.mesh_map), 
-            b: Array1::zeros(mesh.num_vertex * mesh.freedom), 
+            b: Array1::zeros(size), 
+            bc: vec![None; size], 
         }
     }
 }
@@ -57,10 +47,12 @@ impl LzhSolver {
 #[allow(dead_code)]
 impl EnvSolver {
     pub fn new(mesh: &Mesh) -> Self {
+        let size = mesh.num_vertex * mesh.freedom;
         Self { 
-            size: mesh.num_vertex * mesh.freedom,
+            size,
             a: EnvSparseMatrix::new(mesh.num_vertex, mesh.freedom, &mesh.mesh_map), 
-            b: Array1::zeros(mesh.num_vertex * mesh.freedom), 
+            b: Array1::zeros(size), 
+            bc: vec![None; size],  
         }
     }
 }
@@ -70,26 +62,17 @@ impl FemSolver for LzhSolver {
         self.size
     }
     fn add_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError> {
-        self.a.add_value(index1, index2, value)
-    }
-    fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError> {
-        self.a.set_value(index1, index2, value)
-    }
-    fn get_matrix_value(&self, index1: usize, index2: usize) -> Result<f64, FemError> {
-        self.a.get_value(index1, index2)
-    }
-    fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), FemError> {
-        if index >= self.size {
-            return Err(FemError::InvalidIndex);
-        }
-        self.b[index] = val;
+        if self.bc[index1] == None && self.bc[index2] == None { self.a.add_value(index1, index2, value)? }
         Ok(())
     }
     fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), FemError> {
-        if index >= self.size {
-            return Err(FemError::InvalidIndex);
-        }
-        self.b[index] += val;
+        if index >= self.size { return Err(FemError::InvalidIndex) }
+        if self.bc[index] == None { self.b[index] += val }
+        Ok(())
+    }
+    fn set_result_value(&mut self, index: usize, val: f64) -> Result<(), FemError> {
+        if index >= self.size() { return Err(FemError::InvalidIndex) }
+        self.bc[index] = Some(val);
         Ok(())
     }
     fn mul_vector_value(&mut self, coef: f64) {
@@ -98,6 +81,13 @@ impl FemSolver for LzhSolver {
         }     
     }
     fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError> {
+        // Учет граничных условий
+        for i in 0..self.size {
+            if self.bc[i] != None {
+                self.a.add_value(i, i, 1.0)?;
+                self.b[i] = self.bc[i].unwrap();
+            }
+        }
         self.a.solve(&self.b, eps)
     }
     fn clear_matrix(&mut self) {
@@ -113,26 +103,17 @@ impl FemSolver for EnvSolver {
         self.size
     }
     fn add_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError> {
-        self.a.add_value(index1, index2, value)
-    }
-    fn set_matrix_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError> {
-        self.a.set_value(index1, index2, value)
-    }
-    fn get_matrix_value(&self, index1: usize, index2: usize) -> Result<f64, FemError> {
-        self.a.get_value(index1, index2)
-    }
-    fn set_vector_value(&mut self, index: usize, val: f64) -> Result<(), FemError> {
-        if index >= self.size {
-            return Err(FemError::InvalidIndex);
-        }
-        self.b[index] = val;
+        if self.bc[index1] == None && self.bc[index2] == None { self.a.add_value(index1, index2, value)? }
         Ok(())
     }
     fn add_vector_value(&mut self, index: usize, val: f64) -> Result<(), FemError> {
-        if index >= self.size {
-            return Err(FemError::InvalidIndex);
-        }
-        self.b[index] += val;
+        if index >= self.size { return Err(FemError::InvalidIndex) }
+        if self.bc[index] == None { self.b[index] += val }
+        Ok(())
+    }
+    fn set_result_value(&mut self, index: usize, val: f64) -> Result<(), FemError> {
+        if index >= self.size() { return Err(FemError::InvalidIndex) }
+        self.bc[index] = Some(val);
         Ok(())
     }
     fn mul_vector_value(&mut self, coef: f64) {
@@ -141,6 +122,24 @@ impl FemSolver for EnvSolver {
         }        
     }
     fn solve(&mut self, eps: f64) -> Result<Array1<f64>, FemError> {
+        // Учет граничных условий
+        for i in 0..self.size {
+            if self.bc[i] != None {
+                self.a.add_value(i, i, 1.0)?;
+                self.b[i] = self.bc[i].unwrap();
+            }
+        }
+
+        // println!();
+        // for i in 0..self.size {
+        //     for j in 0..self.size {
+        //         print!("{:10.3} ", if self.a.get_value(i, j).is_err() { 0.0} else { self.a.get_value(i, j).unwrap() });
+        //     }
+        //     println!("{:10.3}", self.b[i]);
+        // }
+        // println!();
+
+
         self.a.solve(&self.b, eps)
     }
     fn clear_matrix(&mut self) {

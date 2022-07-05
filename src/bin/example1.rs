@@ -70,7 +70,7 @@ fn test_shell_3(nthreads: usize) -> Result<(), FemError> {
 
 #[allow(dead_code)]
 fn test_tank(nthreads: usize) -> Result<(), FemError> {
-    //let file_name = ("data/tank.mesh", "data/tank.res");
+    // let file_name = ("data/tank.mesh", "data/tank.res");
     let file_name = ("data/tank_1_4.mesh", "data/tank_1_4.res");
     let mesh = Mesh::new(file_name.0)?;
     let mut param = FEMParameter::new();
@@ -154,6 +154,9 @@ fn main() {
     if let Err(e) = test_tank(1) {
         println!("\n\x1b[91mError: {}\x1b[0m", e);
     }
+    // if let Err(e) = test_1d2(1) {
+    //     println!("\n\x1b[91mError: {}\x1b[0m", e);
+    // }
 }
 
 
