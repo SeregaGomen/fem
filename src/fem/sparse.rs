@@ -1,3 +1,5 @@
+use russell_lab::Vector;
+use russell_sparse::{ConfigSolver, Solver, SparseTriplet, Symmetry};
 use rayon::prelude::*;
 use ndarray::{Array1, prelude::*};
 use super::error::FemError;
@@ -7,8 +9,6 @@ use super::msg::Messenger;
 
 pub trait SparseMatrix {
     fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
-    fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError>;
-    fn get_value(&self, index1: usize, index2: usize) -> Result<f64, FemError>;
     fn solve(&mut self, rhs: &Vec<f64>, eps: f64) -> Result<Vec<f64>, FemError>;
     fn clear(&mut self);
 }
@@ -29,21 +29,19 @@ pub struct EnvSparseMatrix {
     xenv: Vec<usize>,
 }
 
+// Russell 
+pub struct RussellSparseMatrix {
+    size: usize,
+    data: SparseTriplet,
+}
+
+
 impl SparseMatrix for MapSparseMatrix {
     fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError> {
         let pos = self.find(index1, index2)?;
         //println!("{} - {}", pos.0, pos.1);
         self.data[index1][pos] += value;
         Ok(())
-    }
-    fn set_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError> {
-        let pos = self.find(index1, index2)?;
-        self.data[index1][pos] = value;
-        Ok(())
-    }
-    fn get_value(&self, index1: usize, index2: usize) -> Result<f64, FemError> {
-        let pos = self.find(index1, index2)?;
-        Ok(self.data[index1][pos])
     }
     fn solve(&mut self, rhs: &Vec<f64>, eps: f64) -> Result<Vec<f64>, FemError> {
         self.lzh_solve(rhs, eps)
@@ -72,31 +70,6 @@ impl SparseMatrix for EnvSparseMatrix {
         }
         Ok(())
     }
-    fn set_value(&mut self, i: usize, j: usize, value: f64) -> Result<(), FemError> {
-        if i >= j {
-            if i == j {
-                self.diag[i] = value;
-            } else
-            {
-                if self.xenv[i + 1] - i + j >= self.xenv[i] {
-                    self.env[self.xenv[i + 1] - i + j] = value;
-                }
-            }
-        }
-        Ok(())
-    }
-    fn get_value(&self, i: usize, j: usize) -> Result<f64, FemError> {
-        if i >= j {
-            if i == j {
-                return Ok(self.diag[i]);
-            } else {
-                if self.xenv[i + 1] - i + j >= self.xenv[i] {
-                    return Ok(self.env[self.xenv[i + 1] - i + j]);
-                }
-            }
-        }
-        Err(FemError::InvalidIndex)
-    }
     fn solve(&mut self, rhs: &Vec<f64>, _eps: f64) -> Result<Vec<f64>, FemError> {
         // Факторизация матрицы A = L * L(t)
         if self.esfct() == false {
@@ -118,14 +91,32 @@ impl SparseMatrix for EnvSparseMatrix {
     }
 }
 
+impl SparseMatrix for RussellSparseMatrix {
+    fn add_value(&mut self, index1: usize, index2: usize, value: f64) -> Result<(), FemError> {
+        self.data.put(index1, index2, value)?;
+        Ok(())
+    }
+    fn solve(&mut self, rhs: &Vec<f64>, _: f64) -> Result<Vec<f64>, FemError> {
+        let mut solver = Solver::new(ConfigSolver::new()).unwrap();
+        solver.initialize(&self.data)?;
+        solver.factorize()?;
+        let mut x = Vector::new(self.size);
+        solver.solve(&mut x, & Vector::from(rhs))?;
+        Ok(x.as_data().clone())
+    }
+    fn clear(&mut self) {
+        self.data.reset();
+    }
+}
+
 #[allow(dead_code)]
 impl MapSparseMatrix {
-    pub fn new(nvtxs: usize, blksze: usize, map: &Vec<Vec<usize>>) -> Self {
+    pub fn new(nvtxs: usize, blksze: usize, map: &Vec<Vec<usize>>) -> Result<Self, FemError> {
         let mut data: Vec<Vec<f64>> = Vec::new();
         for i in 0..nvtxs * blksze {
             data.push(vec![0.0; map[i / blksze].len() * blksze]);
         }
-        Self{nvtxs, blksze, map: map.clone(), data}
+        Ok(Self{nvtxs, blksze, map: map.clone(), data})
     }
     fn find(&self, index1: usize, index2: usize) -> Result<usize, FemError> {
         if index1 >= self.nvtxs * self.blksze || index2 >= self.nvtxs * self.blksze  {
@@ -204,7 +195,7 @@ impl MapSparseMatrix {
 
 #[allow(dead_code)]
 impl EnvSparseMatrix {
-    pub fn new(nvtxs: usize, blksze: usize, map: &Vec<Vec<usize>>) -> Self {
+    pub fn new(nvtxs: usize, blksze: usize, map: &Vec<Vec<usize>>) -> Result<Self, FemError> {
         let mut size: usize = 0;
         let mut count: usize = 0;
         let diag = vec![0.; nvtxs * blksze];
@@ -225,7 +216,7 @@ impl EnvSparseMatrix {
         env = vec![0.; size];
         size = xenv.len() - 1;
         xenv[size] = env.len();
-        Self{size: nvtxs * blksze, diag, env, xenv}
+        Ok(Self{size: nvtxs * blksze, diag, env, xenv})
     }
     fn esfct(&mut self) -> bool {
         if self.diag[0] < 0. {
@@ -325,5 +316,12 @@ impl EnvSparseMatrix {
             }
         }
         res
+    }
+}
+
+#[allow(dead_code)]
+impl RussellSparseMatrix {
+    pub fn new(size: usize, nnz: usize) -> Result<Self, FemError> {
+        Ok(Self{ size, data: SparseTriplet::new(size, size, nnz, Symmetry::General)? })
     }
 }

@@ -298,13 +298,13 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
                         let val = it.get_scalar_value(&self.get_mesh().get_x_coord(i), &self.get_param().variables)?;
                         if it.direct.contains(Direct::X) {
                             // solver.lock().unwrap().set_result_value((i + l) * self.mesh.freedom + 0, val)?;    
-                            solver.lock().unwrap().set_result_value((i) * self.get_mesh().freedom + 0, val)?;    
+                            solver.lock().unwrap().set_boundary_condition((i) * self.get_mesh().freedom + 0, val)?;    
                         }
                         if it.direct.contains(Direct::Y) && (self.get_mesh().is_2d() || self.get_mesh().is_3d()) {
-                            solver.lock().unwrap().set_result_value((i) * self.get_mesh().freedom + 1, val)?;    
+                            solver.lock().unwrap().set_boundary_condition((i) * self.get_mesh().freedom + 1, val)?;    
                         }
                         if it.direct.contains(Direct::Z) && self.get_mesh().is_3d() {
-                            solver.lock().unwrap().set_result_value((i) * self.get_mesh().freedom + 2, val)?;    
+                            solver.lock().unwrap().set_boundary_condition((i) * self.get_mesh().freedom + 2, val)?;    
                         }
                     }
                 }
@@ -435,7 +435,7 @@ impl<'a> FiniteElementMethod<'a> for FEM<'a> {
 
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
         let time = Instant::now();
-        let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
+        let mut solver = Mutex::new(LzhSolver::new(&self.mesh)?);
         // let mut solver = Mutex::new(EnvSolver::new(&self.mesh));
         self.set_boundary_condition(&mut solver)?;
         self.set_load(&mut solver)?;
@@ -474,11 +474,11 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
     fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
         // use solver::LzhSolver;
         // use solver::EnvSolver;
-        use solver::RLSolver;
+        use solver::RussellSolver;
 
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
         let time = Instant::now();
-        let mut solver = Mutex::new(RLSolver::new(&self.mesh));
+        let mut solver = Mutex::new(RussellSolver::new(&self.mesh)?);
         // let mut solver = Mutex::new(LzhSolver::new(&self.mesh));
 
         // Учет краевых условий

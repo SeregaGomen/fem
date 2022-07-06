@@ -1,6 +1,6 @@
 //use std;
 use std::fmt;
-use std::error::Error;
+// use std::error::Error;
 use std::convert::From;
 use std::io::Error as IoError;
 use std::num::ParseIntError as ParseIntError;
@@ -46,11 +46,11 @@ pub enum FemError {
 impl fmt::Display for FemError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            FemError::Io(ref cause) => write!(f, "I/O Error: {}", cause),
-            FemError::ParseInt(ref cause) => write!(f, "Parse Int Error: {}", cause),
-            FemError::ParseFloat(ref cause) => write!(f, "Parse Float Error: {}", cause),
-            FemError::JsonError(ref cause) => write!(f, "Json Error: {}", cause),
-            FemError::StrError(ref cause) => write!(f, "Russell Error: {}", *cause),
+            FemError::Io(ref cause) => write!(f, "I/O error: {}", cause),
+            FemError::ParseInt(ref cause) => write!(f, "Parse int error: {}", cause),
+            FemError::ParseFloat(ref cause) => write!(f, "Parse float error: {}", cause),
+            FemError::JsonError(ref cause) => write!(f, "Json error: {}", cause),
+            FemError::StrError(ref cause) => write!(f, "Russell error: {}", *cause),
             FemError::OpenFile => write!(f, "Unable open file"),
             FemError::ReadFile => write!(f, "Unable read file"),
             FemError::WriteFile => write!(f, "Unable write file"),
@@ -81,43 +81,44 @@ impl fmt::Display for FemError {
     }
 }
 
-impl Error for FemError {
-    fn cause(&self) -> Option<&dyn Error> {
-        match *self {
-            FemError::Io(ref cause) => Some(cause),
-            FemError::ParseInt(ref cause) => Some(cause),
-            FemError::ParseFloat(ref cause) => Some(cause),
-            FemError::JsonError(ref cause) => Some(cause),
-            FemError::StrError(ref cause) => None, //Some(cause),
-            FemError::OpenFile => Some(&FemError::OpenFile),
-            FemError::ReadFile => Some(&FemError::ReadFile),
-            FemError::WriteFile => Some(&FemError::WriteFile),
-            FemError::InvalidFEType => Some(&FemError::InvalidFEType),
-            FemError::InvalidNumber => Some(&FemError::InvalidNumber),
-            FemError::SingularMatrix => Some(&FemError::SingularMatrix),
-            FemError::InverseMatrix => Some(&FemError::InverseMatrix),
-            FemError::DeterminantMatrix => Some(&FemError::DeterminantMatrix),
-            FemError::InvalidIndex => Some(&FemError::InvalidIndex),
-            FemError::UndefError => Some(&FemError::UndefError),
-            FemError::BracketError => Some(&FemError::BracketError),
-            FemError::SyntaxError => Some(&FemError::SyntaxError),
-            FemError::MeshError => Some(&FemError::MeshError),
-            FemError::ResultError => Some(&FemError::ResultError),
-            FemError::ParamError => Some(&FemError::ParamError),
-            FemError::InternalError => Some(&FemError::InternalError),
-            FemError::YoungModulusError => Some(&FemError::YoungModulusError),
-            FemError::PoissonRatioError => Some(&FemError::PoissonRatioError),
-            FemError::DirectError => Some(&FemError::DirectError),
-            FemError::IncorrectDirectError => Some(&FemError::IncorrectDirectError),
-            FemError::IncorrectParamError => Some(&FemError::IncorrectParamError),
-            FemError::ValueError => Some(&FemError::ValueError),
-            FemError::PredicateError => Some(&FemError::PredicateError),
-            FemError::StressStrainCurveError => Some(&FemError::StressStrainCurveError),
-            FemError::ThicknessError => Some(&FemError::ThicknessError),
-            FemError::Other => None,
-        }
-    }
-}
+// impl Error for FemError {
+//     fn cause(&self) -> Option<&dyn Error> {
+//         match *self {
+//             FemError::Io(ref cause) => Some(cause),
+//             FemError::ParseInt(ref cause) => Some(cause),
+//             FemError::ParseFloat(ref cause) => Some(cause),
+//             FemError::JsonError(ref cause) => Some(cause),
+//             FemError::StrError(ref _cause) => Some(&FemError::RussellError), //Some(cause),
+//             FemError::OpenFile => Some(&FemError::OpenFile),
+//             FemError::ReadFile => Some(&FemError::ReadFile),
+//             FemError::WriteFile => Some(&FemError::WriteFile),
+//             FemError::InvalidFEType => Some(&FemError::InvalidFEType),
+//             FemError::InvalidNumber => Some(&FemError::InvalidNumber),
+//             FemError::SingularMatrix => Some(&FemError::SingularMatrix),
+//             FemError::InverseMatrix => Some(&FemError::InverseMatrix),
+//             FemError::DeterminantMatrix => Some(&FemError::DeterminantMatrix),
+//             FemError::InvalidIndex => Some(&FemError::InvalidIndex),
+//             FemError::UndefError => Some(&FemError::UndefError),
+//             FemError::BracketError => Some(&FemError::BracketError),
+//             FemError::SyntaxError => Some(&FemError::SyntaxError),
+//             FemError::MeshError => Some(&FemError::MeshError),
+//             FemError::ResultError => Some(&FemError::ResultError),
+//             FemError::ParamError => Some(&FemError::ParamError),
+//             FemError::InternalError => Some(&FemError::InternalError),
+//             FemError::YoungModulusError => Some(&FemError::YoungModulusError),
+//             FemError::PoissonRatioError => Some(&FemError::PoissonRatioError),
+//             FemError::DirectError => Some(&FemError::DirectError),
+//             FemError::IncorrectDirectError => Some(&FemError::IncorrectDirectError),
+//             FemError::IncorrectParamError => Some(&FemError::IncorrectParamError),
+//             FemError::ValueError => Some(&FemError::ValueError),
+//             FemError::PredicateError => Some(&FemError::PredicateError),
+//             FemError::StressStrainCurveError => Some(&FemError::StressStrainCurveError),
+//             FemError::ThicknessError => Some(&FemError::ThicknessError),
+//             FemError::RussellError => Some(&FemError::RussellError),
+//             FemError::Other => None,
+//         }
+//     }
+// }
 
 // Support converting system errors into our custom error.
 // This trait is used in `try!`.
