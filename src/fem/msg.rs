@@ -15,11 +15,11 @@ pub struct Messenger<'a> {
 
 impl<'a> Messenger<'a> {
     pub fn new(msg: &'static str, start: i64, stop: i64, step: i64) -> Self {
-        print!("\r{}...{}%", msg, 0);
-        io::stdout().flush().unwrap();
         let (tx, rx): (Sender<bool>, Receiver<bool>) = channel();
         if stop == 0 {
             // Перманентный процесс
+            print!("\r{}...", msg);
+            io::stdout().flush().unwrap();
             std::thread::spawn(move || {
                 let mut i = 0;
                 let chr = ['|', '/', '-', '\\'];
@@ -30,9 +30,12 @@ impl<'a> Messenger<'a> {
                         Ok(_) | Err(TryRecvError::Disconnected) => break,
                         Err(TryRecvError::Empty) => {}
                     }
-                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    std::thread::sleep(std::time::Duration::from_millis(10));
                 }
             });            
+        } else {
+            print!("\r{}...{}%", msg, 0);
+            io::stdout().flush().unwrap();
         }
         Self { msg, start, stop, step, current: 0, old: 0, time: Instant::now(), tx }
     }

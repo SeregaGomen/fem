@@ -474,14 +474,15 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
         Arc::new(self.mesh)
     }
     fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
-        use solver::LzhSolver;
+        // use solver::LzhSolver;
         // use solver::EnvSolver;
-        // use solver::RussellSolver;
+        use solver::RussellSolver;
 
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
         let time = Instant::now();
-        // let mut solver = Mutex::new(RussellSolver::new(&self.mesh)?);
-        let mut solver = Mutex::new(LzhSolver::new(&self.mesh)?);
+        let mut solver = Mutex::new(RussellSolver::new(&self.mesh)?);
+        // let mut solver = Mutex::new(LzhSolver::new(&self.mesh)?);
+        // let mut solver = Mutex::new(EnvSolver::new(&self.mesh)?);
 
         // Учет краевых условий
         self.set_boundary_condition(&mut solver)?;

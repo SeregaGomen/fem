@@ -70,8 +70,8 @@ fn test_shell_3(nthreads: usize) -> Result<(), FemError> {
 
 #[allow(dead_code)]
 fn test_tank(nthreads: usize) -> Result<(), FemError> {
-    // let file_name = ("data/tank.mesh", "data/tank.res");
-    let file_name = ("data/tank_1_4.mesh", "data/tank_1_4.res");
+    let file_name = ("data/tank.mesh", "data/tank.res");
+    // let file_name = ("data/tank_1_4.mesh", "data/tank_1_4.res");
     let mesh = Mesh::new(file_name.0)?;
     let mut param = FEMParameter::new();
     let fn_true = |_x: f64, _y: f64, _z: f64| { 1.0 };
@@ -128,8 +128,8 @@ fn test_tank(nthreads: usize) -> Result<(), FemError> {
     param.add_thickness_fun(|_x, _y, _z| { 0.016 }, fn_true);
     
     param.add_boundary_condition_fun(|_, _, _| { 0. }, move |x, _, _| { if (x - 14.338).abs() < eps { 1.0 } else { 0.0 } }, Direct::X | Direct::Y | Direct::Z);
-    param.add_boundary_condition_fun(|_, _, _| { 0. }, move |_, y, _| { if y.abs() <= eps { 1.0 } else { 0.0 } }, Direct::Y);
-    param.add_boundary_condition_fun(|_, _, _| { 0. }, move |_, _, z| { if z.abs() <= eps { 1.0 } else { 0.0 } }, Direct::Z);
+    // param.add_boundary_condition_fun(|_, _, _| { 0. }, move |_, y, _| { if y.abs() <= eps { 1.0 } else { 0.0 } }, Direct::Y);
+    // param.add_boundary_condition_fun(|_, _, _| { 0. }, move |_, _, z| { if z.abs() <= eps { 1.0 } else { 0.0 } }, Direct::Z);
 
     param.add_pressure_load_fun(move |_x, _y, _z| { p }, move |x, _, _| { if x >= 0. && x <= l { 1.0 } else { 0.0 } });
     param.add_pressure_load_fun(move |_x, _y, _z| { p }, move |x, y, z| { if (r * r - ((x - c) * (x - c) + y * y + z * z)).abs() <= eps && x <= (r * fi_t.cos() + c) { 1.0 } else { 0.0 } });
