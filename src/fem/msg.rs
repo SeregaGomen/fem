@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 use std::time::Instant;
-use std::sync::Arc;
+use std::sync::mpsc::{Sender, Receiver, channel, TryRecvError};
 
 pub struct Messenger<'a> {
     msg: &'a str,
@@ -10,27 +10,31 @@ pub struct Messenger<'a> {
     step: i64,
     old: i64,
     time: Instant,
-    is_stoped: Arc<bool>
+    tx: Sender<bool>,
 }
 
 impl<'a> Messenger<'a> {
     pub fn new(msg: &'static str, start: i64, stop: i64, step: i64) -> Self {
         print!("\r{}...{}%", msg, 0);
         io::stdout().flush().unwrap();
-        let is_stoped = Arc::new(false);
+        let (tx, rx): (Sender<bool>, Receiver<bool>) = channel();
         if stop == 0 {
             // Перманентный процесс
-            let is_stoped_c = is_stoped.clone();
             std::thread::spawn(move || {
                 let mut i = 0;
                 let chr = ['|', '/', '-', '\\'];
-                while !*is_stoped_c {
+                loop {
                     print!("\r{}...{}", msg, chr[i % 4]);    
                     i += 1;
+                    match rx.try_recv() {
+                        Ok(_) | Err(TryRecvError::Disconnected) => break,
+                        Err(TryRecvError::Empty) => {}
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                 }
             });            
         }
-        Self { msg, start, stop, step, current: 0, old: 0, time: Instant::now(), is_stoped }
+        Self { msg, start, stop, step, current: 0, old: 0, time: Instant::now(), tx }
     }
     pub fn add_progress(&mut self) {
         self.current += 1;
@@ -51,7 +55,10 @@ impl<'a> Messenger<'a> {
         self.old = persent;
     }
     pub fn stop(&mut self) {
-        self.is_stoped = Arc::new(true);
+        if self.stop == 0 {
+            self.tx.send(true).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
         print!("\r{}...100%\n", self.msg);
         println!("Done in: {:.2?}", self.time.elapsed());
     }

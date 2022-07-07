@@ -157,6 +157,9 @@ fn main() {
     // if let Err(e) = test_1d2(1) {
     //     println!("\n\x1b[91m{}\x1b[0m", e);
     // }
+    // if let Err(e) = test_3d8(1) {
+    //     println!("\n\x1b[91m{}\x1b[0m", e);
+    // }
 }
 
 
