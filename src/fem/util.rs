@@ -81,14 +81,6 @@ pub fn det(m: &Array2<f64>) -> Result<f64, FemError> {
     Ok(ret)
 }
 
-// Скалярное произведение векторов
-pub fn scalar_product(lhs: &Array1<f64>, rhs: &Array1<f64>) -> f64 {
-    let mut ret = 0.;
-    for i in 0..lhs.len() {
-        ret += lhs[i] * rhs[i];
-    }
-    ret
-}
 // Форматированный вывод вещественных чисел
 pub fn fmt_f64(num: f64, width: usize, precision: usize, exp_pad: usize) -> String {
     let mut num = format!("{:.precision$e}", num, precision = precision);
