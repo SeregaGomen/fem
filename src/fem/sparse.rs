@@ -22,8 +22,8 @@ impl SparseMatrix for RussellSparseMatrix {
         Ok(())
     }
     fn solve(&mut self, rhs: &Vec<f64>, _: f64) -> Result<Vec<f64>, FemError> {
-        // let mut solver = Solver::new(ConfigSolver::new()).unwrap();
-        let mut solver = Solver::new(*ConfigSolver::new().lin_sol_kind(LinSolKind::Mmp)).unwrap();
+        // let mut solver = Solver::new(ConfigSolver::new())?;
+        let mut solver = Solver::new(*ConfigSolver::new().lin_sol_kind(LinSolKind::Mmp))?;
         let mut msg = Messenger::new("Solution of the system of equations", 0, 0, 0);
         solver.initialize(&self.data)?;
         solver.factorize()?;
