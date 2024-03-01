@@ -1,0 +1,46 @@
+{
+    "Mesh": "data/shell-tube-3.mesh",
+    "Result": "data/shell-tube-3.res",
+    "Threads": 1,
+    "Eps": 1.0e-6,
+    "YoungModulus": [
+        {
+            "Value": "6.5e+10", 
+            "Predicate": "" 
+        }
+    ],
+    "PoissonRatio": [
+        {
+            "Value": "0.3", 
+            "Predicate": "" 
+        }
+    ],
+    "Thickness": [
+        {
+            "Value": "0.0045", 
+            "Predicate": "" 
+        }
+    ],
+    "BoundaryConditions": [
+        {
+            "Value": "0", 
+            "Predicate": "z == 0. or z == 4.014", 
+            "Direct": "XYZ"
+        }
+    ],
+    "PressureLoad": [
+        {
+            "Value": "3.65E+07", 
+            "Predicate": "" 
+        }
+    ],
+    "StressStrainCurve": [
+        {
+            "Value": [[1.27E+08, 0.002], [1.57E+08, 0.004], [1.77E+08, 0.008], [1.96E+08, 0.02], [3.14E+08, 0.12]], 
+            "Predicate": "" 
+        }
+    ],
+    "Variables": [
+        "eps 0.001"
+    ]
+}

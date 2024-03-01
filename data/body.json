@@ -1,0 +1,42 @@
+{
+    "Mesh": "data/body.mesh",
+    "Result": "data/body.res",
+    "Threads": 8,
+    "Eps": 1.0e-3,
+    "YoungModulus": [
+        {
+            "Value": "3.86e+10", 
+            "Predicate": "y>=9" 
+        },
+        {
+            "Value": "3.31e+3", 
+            "Predicate": "y<9" 
+        }
+    ],
+    "PoissonRatio": [
+        {
+            "Value": "0.2", 
+            "Predicate": "y>=9" 
+        },
+        {
+            "Value": "0.3", 
+            "Predicate": "y<9" 
+        }
+    ],
+    "BoundaryConditions": [
+        {
+            "Value": "0", 
+            "Predicate": "y==0", 
+            "Direct": "XYZ"
+        }
+    ],
+    "Variables": [
+        "eps 0.001"
+    ],
+    "PressureLoad": [
+        {
+            "Value": "-1/(x*x+1)", 
+            "Predicate": "y==10" 
+        }
+    ]
+}

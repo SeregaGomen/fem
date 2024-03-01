@@ -1,0 +1,31 @@
+{
+	"Mesh": "data/cube.mesh",
+    "Result": "data/cube.res",
+    "Threads": 8,
+    "YoungModulus": [
+        {
+            "Value": "203200", 
+            "Predicate": "" 
+        }
+    ],
+    "PoissonRatio": [
+        {
+            "Value": "0.27", 
+            "Predicate": "" 
+        }
+    ],
+    "BoundaryConditions": [
+        {
+            "Value": "0", 
+            "Predicate": "z == 0", 
+            "Direct": "XYZ"
+        }
+    ],
+    "VolumeLoad": [
+        {
+            "Value": "-0.5", 
+            "Predicate": "", 
+            "Direct": "Z"
+        }
+    ]
+}

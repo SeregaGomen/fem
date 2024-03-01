@@ -1,0 +1,128 @@
+{
+    "Mesh": "data/tank_1_4.mesh",
+    "Result": "data/tank_1_4.res",
+    "Threads": 8,
+    "Eps": 1.0e-3,
+    "YoungModulus": [
+        {
+            "Value": "6.5e+10", 
+            "Predicate": "(abs(R * R - ((x - C) * (x - C) + y * y + z * z)) <= eps and x <= (R * cos(FI_T) + C)) or (abs(R * R - ((x - L + C) * (x - L + C) + y * y + z * z)) <= eps and x >= (R * cos(FI_B) + L - C))" 
+        },
+        {
+            "Value": "7.3e+10", 
+            "Predicate": "" 
+        }
+    ],
+    "PoissonRatio": [
+        {
+            "Value": "0.3", 
+            "Predicate": "" 
+        }
+    ],
+    "Thickness": [
+        {
+            "Value": "0.0046", 
+            "Predicate": "((abs(R * R - ((x - C) * (x - C) + y * y + z * z)) <= eps) and (x <= (R * cos(FI_T) + C))) or ((abs(R * R - ((x - L + C) * (x - L + C) + y * y + z * z)) <= eps) and (x >= (R * cos(FI_B) + L - C)))" 
+        },
+        {
+            "Value": "0.05", 
+            "Predicate": "((x >= (R * cos(FI_T) + C)) and (x <= 0)) or ((x >= L) and (x <= (R * cos(FI_B) + L - C))) or ((x >= 4 * L3 - H / 2) and (x <= 4 * L3 + H / 2))" 
+        },
+        {
+            "Value": "0.0255", 
+            "Predicate": "((x >= L3 - H / 2.0) and (x <= L3 + H / 2)) or ((x >= 2 * L3 - H / 2) and (x <= 2 * L3 + H / 2)) or ((x >= 5 * L3 - H / 2) and (x <= 5 * L3 + H / 2)) or ((x >= 6 * L3 - H / 2) and (x <= 6 * L3 + H / 2)) or ((x >= 6 * L3 - H / 2 + L4) and (x <= 6 * L3 + H / 2 + L4))" 
+        },
+        {
+            "Value": "0.04", 
+            "Predicate": "(x >= 3 * L3 - H) and (x <= 3 * L3 + H)" 
+        },
+        {
+            "Value": "0.0045", 
+            "Predicate": "(x >= 0 and x <= (L3 - H / 2)) or (x >= (L3 + H / 2) and x <= (2 * L3 - H / 2)) or (x >= (2 * L3 + H / 2) and x <= (3 * L3 - H)) or (x >= (4 * L3 + H / 2) and x <= (5 * L3 - H / 2)) or (x >= (5 * L3 + H / 2) and x <= (6 * L3 - H / 2))" 
+        },
+        {
+            "Value": "0.0046", 
+            "Predicate": "x >= (3 * L3 + H) and x <= (4 * L3 - H / 2)" 
+        },
+        {
+            "Value": "0.0052", 
+            "Predicate": "(x >= (6 * L3 + H / 2) and x <= (6 * L3 - H / 2 + L4)) or (x >= (6 * L3 + H / 2 + L4) and x <= L)" 
+        },
+        {
+            "Value": "0.0143", 
+            "Predicate": "x < 0" 
+        },
+        {
+            "Value": "0.016", 
+            "Predicate": "" 
+        }
+    ],
+    "BoundaryConditions": [
+        {
+            "Value": "0", 
+            "Predicate": "abs(x - 14.338) < eps", 
+            "Direct": "XYZ"
+        },
+        {
+            "Value": "0", 
+            "Predicate": "abs(y) <= eps", 
+            "Direct": "Y"
+        },
+        {
+            "Value": "0", 
+            "Predicate": "abs(z) <= eps", 
+            "Direct": "Z"
+        }
+    ],
+    "Variables": [
+        "C 1.454",
+        "CX_BOT 20.7657",
+        "CX_TOP -8.5497",
+        "D 3.9",
+        "FI_B -0.872665",
+        "FI_T -2.26893",
+        "H 0.06",
+        "K2_BOT 0.0520196",
+        "K2_TOP 0.0520196",
+        "L 12.216",
+        "L1 1.767",
+        "L2 2.122",
+        "L3 1.654",
+        "L4 1.09",
+        "P 142196",
+        "R 2.5",
+        "eps 0.001"
+    ],
+    "PressureLoad": [
+        {
+            "Value": "P", 
+            "Predicate": "x >= 0 and x <= L" 
+        },
+        {
+            "Value": "P", 
+            "Predicate": "abs(R * R - ((x - C) * (x - C) + y * y + z * z)) <= eps and x <= (R * cos(FI_T) + C)"
+        },
+        {
+            "Value": "P", 
+            "Predicate": "abs(R * R - ((x - L + C) * (x - L + C) + y * y + z * z)) <= eps and x >= (R * cos(FI_B) + L - C)"
+        },
+        {
+            "Value": "P", 
+            "Predicate": "(x >= (R * cos(FI_T) + C) and x <= 0) and abs(y ^ 2 + z ^ 2 - K2_TOP * (x - CX_TOP) ^ 2) < eps"
+        },
+        {
+            "Value": "P", 
+            "Predicate": "(x >= L and x <= (R * cos(FI_B) + L - C)) and abs(y ^ 2 + z ^ 2  - K2_BOT * (x - CX_BOT) ^ 2) < eps"
+        }
+    ],
+    "StressStrainCurve": [
+        {
+            "Value": [[1.27E+08, 0.002], [1.57E+08, 0.004], [1.77E+08, 0.008], [1.96E+08, 0.02], [3.14E+08, 0.12]], 
+            "Predicate": "(abs(R * R - ((x - C) * (x - C) + y * y + z * z)) <= eps and x <= (R * cos(FI_T) + C)) or (abs(R * R - ((x - L + C) * (x - L + C) + y * y + z * z)) <= eps and x >= (R * cos(FI_B) + L - C))" 
+        },
+        {
+            "Value": [[1.96E+08, 0.003], [2.55E+08, 0.005], [2.75E+08, 0.006], [3.14E+08, 0.015], [3.92E+08, 0.0725]], 
+            "Predicate": "" 
+        }
+    ]
+}
