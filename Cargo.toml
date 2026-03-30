@@ -11,8 +11,8 @@ bitflags = "*"
 chrono = "*" 
 rayon = "*"
 json = "*"
+[target.'cfg(not(target_os = "windows"))'.dependencies]
 russell_lab = "*"
 russell_sparse = "*"
-sparse = "0.1.2"
 
 

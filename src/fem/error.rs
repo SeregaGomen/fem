@@ -5,6 +5,7 @@ use std::convert::From;
 use std::io::Error as IoError;
 use std::num::ParseIntError as ParseIntError;
 use std::num::ParseFloatError as ParseFloatError;
+#[cfg(not(target_os = "windows"))]
 use russell_sparse::StrError;
 use json::Error as JsonError;
 
@@ -14,6 +15,7 @@ pub enum FemError {
     ParseInt(ParseIntError),
     ParseFloat(ParseFloatError),
     JsonError(JsonError),
+    #[cfg(not(target_os = "windows"))]
     StrError(StrError),
     OpenFile,
     ReadFile,
@@ -51,6 +53,7 @@ impl fmt::Display for FemError {
             FemError::ParseInt(ref cause) => write!(f, "Parse int error: {}", cause),
             FemError::ParseFloat(ref cause) => write!(f, "Parse float error: {}", cause),
             FemError::JsonError(ref cause) => write!(f, "Json error: {}", cause),
+            #[cfg(not(target_os = "windows"))]
             FemError::StrError(ref cause) => write!(f, "Russell error: {}", *cause),
             FemError::OpenFile => write!(f, "Unable open file"),
             FemError::ReadFile => write!(f, "Unable read file"),
@@ -148,6 +151,7 @@ impl From<JsonError> for FemError {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 impl From<StrError> for FemError {
     fn from(cause: StrError) -> FemError {
         FemError::StrError(cause)

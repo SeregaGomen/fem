@@ -7,6 +7,7 @@ mod sparse;
 mod solver;
 mod parser;
 mod msg;
+#[cfg(not(target_os = "windows"))]
 mod russell;
 #[cfg(target_os = "windows")]
 mod bccs;
