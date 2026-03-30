@@ -7,19 +7,20 @@ mod sparse;
 mod solver;
 mod parser;
 mod msg;
-
+mod russell;
+mod bccs;
 use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
 use ndarray::{Array1, Array2, prelude::*};
 use std::time::Instant;
 use error::FemError;
 use mesh::Mesh;
-use solver::{FemSolver, RussellSolver};
+use solver::FemSolver;
 use fe::FEType;
 use msg::Messenger;
 use param::{ParamType, Parameter, FEMParameter, Direct};
-
-
+use crate::fem::bccs::new_bcc_solver;
+use crate::fem::russell::new_russell_solver;
 
 pub trait FiniteElementMethod<'a>: Send + Sync {
     fn new(mesh: &'a Mesh, param: &'a FEMParameter) -> Self;
@@ -29,8 +30,8 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
     fn get_fe_param(&self, i: usize) -> Result<(Array2<f64>, [f64; 2], f64), FemError> {
         use std::fs::OpenOptions;
         use std::io::Write;        
-        let mut file_e = OpenOptions::new().append(true).create(true).open("e.txt").expect("cannot open file");
-        let mut file_thk = OpenOptions::new().append(true).create(true).open("thk.txt").expect("cannot open file");
+        // let mut file_e = OpenOptions::new().append(true).create(true).open("e.txt").expect("cannot open file");
+        // let mut file_thk = OpenOptions::new().append(true).create(true).open("thk.txt").expect("cannot open file");
         let e = match self.get_param_value(i, ParamType::YoungModulus)? {
             Some(val) => val,
             None => return Err(FemError::YoungModulusError),
@@ -56,8 +57,8 @@ pub trait FiniteElementMethod<'a>: Send + Sync {
             }
         };
 
-        file_e.write_all(format!("{}\n", e).as_bytes()).expect("write failed");
-        file_thk.write_all(format!("{}\n", thk).as_bytes()).expect("write failed");
+        // file_e.write_all(format!("{}\n", e).as_bytes()).expect("write failed");
+        // file_thk.write_all(format!("{}\n", thk).as_bytes()).expect("write failed");
 
 
         Ok((self.get_mesh().get_fe_coord(i), [e, m], thk))
@@ -457,7 +458,8 @@ impl<'a> FiniteElementMethod<'a> for FEM<'a> {
     fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
         let time = Instant::now();
-        let mut solver = Mutex::new(RussellSolver::new(&self.mesh)?);
+        let mut solver = Mutex::new(new_russell_solver(&self.mesh)?);
+        //let mut solver = Mutex::new(new_bcc_solver(&self.mesh)?);
         self.set_boundary_condition(&mut solver)?;
         self.set_load(&mut solver)?;
         self.set_global_matrix(&mut solver)?;
@@ -495,7 +497,8 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
     fn generate(&mut self, res_name: &str) -> Result<(), FemError> {
         rayon::ThreadPoolBuilder::new().num_threads(self.param.nthreads).build_global().unwrap();
         let time = Instant::now();
-        let mut solver = Mutex::new(RussellSolver::new(&self.mesh)?);
+        let mut solver = Mutex::new(new_russell_solver(&self.mesh)?);
+        //let mut solver = Mutex::new(new_bcc_solver(&self.mesh)?);
 
         // Учет краевых условий
         self.set_boundary_condition(&mut solver)?;
@@ -553,7 +556,7 @@ impl<'a> FiniteElementMethod<'a> for FEMPlasticity<'a> {
                 add_count += 1.0;
                 *self.is_local_iteration_stop.lock().unwrap() = false;
             }
-            solver.lock().unwrap().clear_matrix();
+            solver.lock().unwrap().reset_matrix();
         }
         self.save_results(&self.res, res_name)?;
         println!("Lead time: {:.2?}", time.elapsed());

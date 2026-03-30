@@ -151,9 +151,17 @@ fn main() {
     // if let Err(e) = test_shell_3(7) {
     //     println!("\n\x1b[91m{}\x1b[0m", e);
     // }
+
+    //------------------
     if let Err(e) = test_tank(7) {
         println!("\n\x1b[91m{}\x1b[0m", e);
     }
+    //------------------
+    // if let Err(e) = test_2d4(7) {
+    //     println!("\n\x1b[91m{}\x1b[0m", e);
+    // }
+
+
     // if let Err(e) = test_1d2(1) {
     //     println!("\n\x1b[91m{}\x1b[0m", e);
     // }

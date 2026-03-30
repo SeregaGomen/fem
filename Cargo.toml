@@ -13,5 +13,6 @@ rayon = "*"
 json = "*"
 russell_lab = "*"
 russell_sparse = "*"
+sparse = "0.1.2"
 
 

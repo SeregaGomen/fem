@@ -40,6 +40,7 @@ pub enum FemError {
     IncorrectParamError,
     StressStrainCurveError,
     ThicknessError,
+    SingularMatrixError,
     Other,
 }
 
@@ -76,6 +77,7 @@ impl fmt::Display for FemError {
             FemError::PredicateError => write!(f, "Predicate not set"),
             FemError::StressStrainCurveError => write!(f, "Stress-strain curve not set"),
             FemError::ThicknessError => write!(f, "FE thickness not set"),
+            FemError::SingularMatrixError => write!(f, "Matrix is near singular"),
             FemError::Other => write!(f, "Unknown error"),
         }
     }
