@@ -9,8 +9,7 @@ pub trait FemSolver: Send {
     fn mul_vector_value(&mut self, coef: f64);
     fn set_boundary_condition(&mut self, index: usize, val: f64) -> Result<(), FemError>;
     fn reset_matrix(&mut self);
-    fn clear_matrix(&mut self);
-    fn clear_vector(&mut self);
+    fn reset_vector(&mut self);
     fn solve(&mut self, eps: f64) -> Result<Vec<f64>, FemError>;
 }
 
@@ -52,11 +51,8 @@ impl<M: SparseMatrix + Send> FemSolver for GenericSolver<M> {
     fn reset_matrix(&mut self) {
         self.matrix.reset();
     }
-    fn clear_matrix(&mut self) {
-        self.matrix.clear();
-    }
-    fn clear_vector(&mut self) {
-        self.vector.clear();
+    fn reset_vector(&mut self) {
+        self.vector.fill(0.0);
     }
     fn solve(&mut self, eps: f64) -> Result<Vec<f64>, FemError> {
         // Учет граничных условий

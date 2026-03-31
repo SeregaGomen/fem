@@ -32,9 +32,9 @@ impl BccFactor {
             num_vertex,
             block_size,
             l_space: 0,
-            l_ind: vec![],
             perm: vec![],
             inv_p: vec![],
+            l_ind: vec![],
             x_ind: vec![],
             x_val: vec![],
             d_val: vec![],
@@ -152,14 +152,7 @@ impl SparseMatrix for BccSparseMatrix {
         sp_solve(&mut factor, & mut result);
         Ok(result)
     }
-    fn clear(&mut self) {
-        self.ptr.clear();
-        self.ind.clear();
-        self.val.clear();
-    }
     fn reset(&mut self) {
-        // self.ptr.clear();
-        // self.ind.clear();
         self.val.fill(0.0);
     }
 }
