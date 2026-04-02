@@ -29,10 +29,7 @@ impl SparseMatrix for RussellSparseMatrix {
         msg.stop();
         Ok(x.as_data().clone())
     }
-    fn clear(&mut self) {
-        self.data.reset();
-    }
-    fn reset(&mut self) {
+     fn reset(&mut self) {
         self.data.reset();
     }
 }

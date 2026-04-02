@@ -577,7 +577,7 @@ fn gen_qmd(num_vertex: usize, x_adj: &mut Vec<usize>, adj: &mut Vec<usize>, perm
     }
 }
 
-fn merge(a: &mut Vec<usize>, a_len: usize, b: &mut [usize], b_len: usize, t: &mut Vec<usize>) -> usize {
+fn merge(a: &Vec<usize>, a_len: usize, b: &[usize], b_len: usize, t: &mut Vec<usize>) -> usize {
     let mut i = 0_usize;
     let mut j = 0_usize;
     let mut k = 0_usize;
@@ -660,8 +660,8 @@ fn sym_factorize(factor : &mut BccFactor, a_ptr: &Vec<usize>, a_ind:  &Vec<usize
         // Inspect a kids list and consolidate L(*,k)
         let mut i = mrg_lnk[k];
         while i < factor.num_vertex {
-            // erge two sets
-            set_size = merge(&mut node_set, set_size, &mut factor.l_ind[factor.x_ind[i] + 1..], factor.x_val[i + 1] - factor.x_val[i] - 1, &mut stack);
+            // Merge two sets
+            set_size = merge(&node_set, set_size, &factor.l_ind[factor.x_ind[i] + 1..], factor.x_val[i + 1] - factor.x_val[i] - 1, &mut stack);
             // Now a set is in stack
             mem::swap(&mut stack, &mut node_set);
             i = mrg_lnk[i];
